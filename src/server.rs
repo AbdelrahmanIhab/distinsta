@@ -138,26 +138,39 @@ impl ServerNode {
                 image_data,
                 filename,
             } => {
-                // Use timestamp for round-robin assignment across all nodes
-                let timestamp = std::time::SystemTime::now()
-                    .duration_since(std::time::UNIX_EPOCH)
-                    .unwrap()
-                    .as_millis();
+                // Create a deterministic hash for this request (username + filename)
+                use std::collections::hash_map::DefaultHasher;
+                use std::hash::{Hash, Hasher};
 
-                // Round-robin: timestamp % 3 determines node (0→Node1, 1→Node2, 2→Node3)
-                let assigned_node_index = (timestamp % 3) as u32;
-                let assigned_node_id = assigned_node_index + 1;
+                let mut hasher = DefaultHasher::new();
+                username.hash(&mut hasher);
+                filename.hash(&mut hasher);
+                let request_hash = hasher.finish();
 
-                if assigned_node_id != self.id {
-                    println!("Node {}: Request assigned to Node {} (round-robin)",
-                        self.id, assigned_node_id);
-                    return ServerResponse::Error {
-                        message: format!("Request assigned to Node {}", assigned_node_id),
-                    };
+                // Check which peers are alive
+                let alive_nodes = self.get_alive_nodes().await;
+
+                if alive_nodes.is_empty() {
+                    println!("Node {}: No alive nodes detected, processing as fallback", self.id);
+                    // Process anyway as last resort
+                } else {
+                    // Round-robin assignment based on request hash
+                    let assigned_index = (request_hash % alive_nodes.len() as u64) as usize;
+                    let assigned_node_id = alive_nodes[assigned_index];
+
+                    if assigned_node_id != self.id {
+                        println!("Node {}: Request assigned to Node {} (round-robin), rejecting",
+                            self.id, assigned_node_id);
+                        return ServerResponse::Error {
+                            message: format!("Request assigned to Node {}", assigned_node_id),
+                        };
+                    }
+
+                    println!("Node {}: Assigned to me via load balancing (alive nodes: {:?})",
+                        self.id, alive_nodes);
                 }
 
-                // This is MY request - process it!
-                println!("Node {}: Assigned to me via round-robin, processing", self.id);
+                // Process the request
                 println!("Node {}: Processing image upload for user {} ({})",
                     self.id, username, filename);
 
@@ -174,6 +187,38 @@ impl ServerNode {
                 ServerResponse::EncryptedImageData { data: encrypted_data }
             }
         }
+    }
+
+    /// Check which peer nodes are alive by attempting to connect
+    async fn get_alive_nodes(&self) -> Vec<u32> {
+        let peers = self.bully.get_all_peers().await;
+        let mut alive = vec![];
+
+        // Always include myself if I can process requests
+        alive.push(self.id);
+
+        // Quick health check for each peer
+        for (peer_id, peer_addr) in peers {
+            if peer_id == self.id {
+                continue;
+            }
+
+            // Try to connect with short timeout
+            match tokio::time::timeout(
+                Duration::from_millis(100),
+                TcpStream::connect(&peer_addr)
+            ).await {
+                Ok(Ok(_)) => {
+                    alive.push(peer_id);
+                }
+                _ => {
+                    // Node is down or unreachable
+                }
+            }
+        }
+
+        alive.sort();
+        alive
     }
 }
 

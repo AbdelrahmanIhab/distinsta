@@ -65,6 +65,13 @@ impl BullyElection {
         }
     }
 
+    pub async fn get_all_peers(&self) -> Vec<(u32, String)> {
+        let peers = self.peers.read().await;
+        peers.iter()
+            .map(|(id, info)| (*id, info.address.clone()))
+            .collect()
+    }
+
     /// Start monitoring the leader with heartbeats
     pub async fn start_leader_monitoring(self: Arc<Self>) {
         tokio::spawn(async move {
