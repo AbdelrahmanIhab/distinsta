@@ -1,0 +1,492 @@
+warning: unreachable pattern
+   --> src/client.rs:149:13
+    |
+149 |             _ => {
+    |             ^ no value can reach this
+    |
+note: multiple earlier patterns match some of the same values
+   --> src/client.rs:149:13
+    |
+119 |             ServerResponse::EncryptedImageData { data } => {
+    |             ------------------------------------------- matches some of the same values
+...
+146 |             ServerResponse::Error { message } => {
+    |             --------------------------------- matches some of the same values
+...
+149 |             _ => {
+    |             ^ collectively making this unreachable
+    = note: `#[warn(unreachable_patterns)]` (part of `#[warn(unused)]`) on by default
+
+warning: enum `InternalMessage` is never used
+  --> src/protocol.rs:21:10
+   |
+21 | pub enum InternalMessage {
+   |          ^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `distinst` (bin "client") generated 2 warnings
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.04s
+     Running `target/debug/client testuser`
+Client will broadcast to servers:
+  - 10.40.45.206:8001
+  - 10.40.33.244:8002
+  - 10.40.53.40:8003
+
+=== Distributed Image Storage Client (REPL) ===
+User: testuser
+Multicast mode: Broadcasting to all servers
+Type 'help' for commands, 'quit' to exit
+================================================
+
+testuser> 
+=== Uploading Image ===
+File: /tmp/tmpiq143b3q/image_1.png
+User: testuser
+Image size: 4353 bytes
+Broadcasting request to 3 servers...
+  Sending to server 1 at 10.40.45.206:8001
+  Sending to server 2 at 10.40.33.244:8002
+  Sending to server 3 at 10.40.53.40:8003
+  - Server 1 declined: Request assigned to Node 2
+  ✓ Server 2 processed request
+  - Server 3 declined: Request assigned to Node 2
+
+✓ Success!
+Encrypted image saved to: images/encrypted_image_1_1762285402.png
+testuser> 
+=== Uploading Image ===
+File: /tmp/tmpiq143b3q/image_2.png
+User: testuser
+Image size: 4353 bytes
+Broadcasting request to 3 servers...
+  Sending to server 1 at 10.40.45.206:8001
+  Sending to server 2 at 10.40.33.244:8002
+  Sending to server 3 at 10.40.53.40:8003
+  - Server 1 declined: Request assigned to Node 3
+  - Server 2 declined: Request assigned to Node 3
+  ✓ Server 3 processed request
+
+✓ Success!
+Encrypted image saved to: images/encrypted_image_2_1762285402.png
+testuser> 
+=== Uploading Image ===
+File: /tmp/tmpiq143b3q/image_3.png
+User: testuser
+Image size: 4353 bytes
+Broadcasting request to 3 servers...
+  Sending to server 1 at 10.40.45.206:8001
+  Sending to server 2 at 10.40.33.244:8002
+  Sending to server 3 at 10.40.53.40:8003
+  ✓ Server 1 processed request
+  - Server 2 declined: Request assigned to Node 1
+  - Server 3 declined: Request assigned to Node 1
+
+✓ Success!
+Encrypted image saved to: images/encrypted_image_3_1762285402.png
+testuser> 
+=== Uploading Image ===
+File: /tmp/tmpiq143b3q/image_4.png
+User: testuser
+Image size: 4353 bytes
+Broadcasting request to 3 servers...
+  Sending to server 1 at 10.40.45.206:8001
+  Sending to server 2 at 10.40.33.244:8002
+  Sending to server 3 at 10.40.53.40:8003
+  - Server 1 declined: Request assigned to Node 2
+  ✓ Server 2 processed request
+  - Server 3 declined: Request assigned to Node 2
+
+✓ Success!
+Encrypted image saved to: images/encrypted_image_4_1762285402.png
+testuser> 
+=== Uploading Image ===
+File: /tmp/tmpiq143b3q/image_5.png
+User: testuser
+Image size: 4353 bytes
+Broadcasting request to 3 servers...
+  Sending to server 1 at 10.40.45.206:8001
+  Sending to server 2 at 10.40.33.244:8002
+  Sending to server 3 at 10.40.53.40:8003
+  - Server 1 declined: Request assigned to Node 3
+  - Server 2 declined: Request assigned to Node 3
+  ✓ Server 3 processed request
+
+✓ Success!
+Encrypted image saved to: images/encrypted_image_5_1762285402.png
+testuser> 
+=== Uploading Image ===
+File: /tmp/tmpiq143b3q/image_6.png
+User: testuser
+Image size: 4353 bytes
+Broadcasting request to 3 servers...
+  Sending to server 1 at 10.40.45.206:8001
+  Sending to server 2 at 10.40.33.244:8002
+  Sending to server 3 at 10.40.53.40:8003
+  ✓ Server 1 processed request
+  - Server 2 declined: Request assigned to Node 1
+  - Server 3 declined: Request assigned to Node 1
+
+✓ Success!
+Encrypted image saved to: images/encrypted_image_6_1762285402.png
+testuser> 
+=== Uploading Image ===
+File: /tmp/tmpiq143b3q/image_7.png
+User: testuser
+Image size: 4353 bytes
+Broadcasting request to 3 servers...
+  Sending to server 1 at 10.40.45.206:8001
+  Sending to server 2 at 10.40.33.244:8002
+  Sending to server 3 at 10.40.53.40:8003
+  - Server 1 declined: Request assigned to Node 2
+  ✓ Server 2 processed request
+  - Server 3 declined: Request assigned to Node 2
+
+✓ Success!
+Encrypted image saved to: images/encrypted_image_7_1762285402.png
+testuser> 
+=== Uploading Image ===
+File: /tmp/tmpiq143b3q/image_8.png
+User: testuser
+Image size: 4353 bytes
+Broadcasting request to 3 servers...
+  Sending to server 1 at 10.40.45.206:8001
+  Sending to server 2 at 10.40.33.244:8002
+  Sending to server 3 at 10.40.53.40:8003
+  - Server 1 declined: Request assigned to Node 2
+  ✓ Server 2 processed request
+  - Server 3 declined: Request assigned to Node 2
+
+✓ Success!
+Encrypted image saved to: images/encrypted_image_8_1762285402.png
+testuser> 
+=== Uploading Image ===
+File: /tmp/tmpiq143b3q/image_9.png
+User: testuser
+Image size: 4353 bytes
+Broadcasting request to 3 servers...
+  Sending to server 1 at 10.40.45.206:8001
+  Sending to server 2 at 10.40.33.244:8002
+  Sending to server 3 at 10.40.53.40:8003
+  - Server 1 declined: Request assigned to Node 2
+  ✓ Server 2 processed request
+  - Server 3 declined: Request assigned to Node 2
+
+✓ Success!
+Encrypted image saved to: images/encrypted_image_9_1762285402.png
+testuser> 
+=== Uploading Image ===
+File: /tmp/tmpiq143b3q/image_10.png
+User: testuser
+Image size: 4353 bytes
+Broadcasting request to 3 servers...
+  Sending to server 1 at 10.40.45.206:8001
+  Sending to server 2 at 10.40.33.244:8002
+  Sending to server 3 at 10.40.53.40:8003
+  - Server 1 declined: Request assigned to Node 3
+  - Server 2 declined: Request assigned to Node 3
+  ✓ Server 3 processed request
+
+✓ Success!
+Encrypted image saved to: images/encrypted_image_10_1762285402.png
+testuser> 
+=== Uploading Image ===
+File: /tmp/tmpiq143b3q/image_11.png
+User: testuser
+Image size: 4353 bytes
+Broadcasting request to 3 servers...
+  Sending to server 1 at 10.40.45.206:8001
+  Sending to server 2 at 10.40.33.244:8002
+  Sending to server 3 at 10.40.53.40:8003
+  ✓ Server 1 processed request
+  - Server 2 declined: Request assigned to Node 1
+  - Server 3 declined: Request assigned to Node 1
+
+✓ Success!
+Encrypted image saved to: images/encrypted_image_11_1762285403.png
+testuser> 
+=== Uploading Image ===
+File: /tmp/tmpiq143b3q/image_12.png
+User: testuser
+Image size: 4353 bytes
+Broadcasting request to 3 servers...
+  Sending to server 1 at 10.40.45.206:8001
+  Sending to server 3 at 10.40.53.40:8003
+  Sending to server 2 at 10.40.33.244:8002
+  - Server 1 declined: Request assigned to Node 3
+  - Server 2 declined: Request assigned to Node 3
+  ✓ Server 3 processed request
+
+✓ Success!
+Encrypted image saved to: images/encrypted_image_12_1762285403.png
+testuser> 
+=== Uploading Image ===
+File: /tmp/tmpiq143b3q/image_13.png
+User: testuser
+Image size: 4353 bytes
+Broadcasting request to 3 servers...
+  Sending to server 1 at 10.40.45.206:8001
+  Sending to server 2 at 10.40.33.244:8002
+  Sending to server 3 at 10.40.53.40:8003
+  - Server 1 declined: Request assigned to Node 3
+  - Server 2 declined: Request assigned to Node 3
+  ✓ Server 3 processed request
+
+✓ Success!
+Encrypted image saved to: images/encrypted_image_13_1762285403.png
+testuser> 
+=== Uploading Image ===
+File: /tmp/tmpiq143b3q/image_14.png
+User: testuser
+Image size: 4353 bytes
+Broadcasting request to 3 servers...
+  Sending to server 1 at 10.40.45.206:8001
+  Sending to server 2 at 10.40.33.244:8002
+  Sending to server 3 at 10.40.53.40:8003
+  ✓ Server 1 processed request
+  - Server 2 declined: Request assigned to Node 1
+  - Server 3 declined: Request assigned to Node 1
+
+✓ Success!
+Encrypted image saved to: images/encrypted_image_14_1762285403.png
+testuser> 
+=== Uploading Image ===
+File: /tmp/tmpiq143b3q/image_15.png
+User: testuser
+Image size: 4353 bytes
+Broadcasting request to 3 servers...
+  Sending to server 1 at 10.40.45.206:8001
+  Sending to server 3 at 10.40.53.40:8003
+  Sending to server 2 at 10.40.33.244:8002
+  - Server 1 declined: Request assigned to Node 3
+  - Server 2 declined: Request assigned to Node 3
+  ✓ Server 3 processed request
+
+✓ Success!
+Encrypted image saved to: images/encrypted_image_15_1762285403.png
+testuser> 
+=== Uploading Image ===
+File: /tmp/tmpiq143b3q/image_16.png
+User: testuser
+Image size: 4353 bytes
+Broadcasting request to 3 servers...
+  Sending to server 1 at 10.40.45.206:8001
+  Sending to server 2 at 10.40.33.244:8002
+  Sending to server 3 at 10.40.53.40:8003
+  ✓ Server 1 processed request
+  - Server 2 declined: Request assigned to Node 1
+  - Server 3 declined: Request assigned to Node 1
+
+✓ Success!
+Encrypted image saved to: images/encrypted_image_16_1762285403.png
+testuser> 
+=== Uploading Image ===
+File: /tmp/tmpiq143b3q/image_17.png
+User: testuser
+Image size: 4353 bytes
+Broadcasting request to 3 servers...
+  Sending to server 1 at 10.40.45.206:8001
+  Sending to server 2 at 10.40.33.244:8002
+  Sending to server 3 at 10.40.53.40:8003
+  - Server 1 declined: Request assigned to Node 3
+  - Server 2 declined: Request assigned to Node 3
+  ✓ Server 3 processed request
+
+✓ Success!
+Encrypted image saved to: images/encrypted_image_17_1762285403.png
+testuser> 
+=== Uploading Image ===
+File: /tmp/tmpiq143b3q/image_18.png
+User: testuser
+Image size: 4353 bytes
+Broadcasting request to 3 servers...
+  Sending to server 1 at 10.40.45.206:8001
+  Sending to server 2 at 10.40.33.244:8002
+  Sending to server 3 at 10.40.53.40:8003
+  ✓ Server 1 processed request
+  - Server 2 declined: Request assigned to Node 1
+  - Server 3 declined: Request assigned to Node 1
+
+✓ Success!
+Encrypted image saved to: images/encrypted_image_18_1762285403.png
+testuser> 
+=== Uploading Image ===
+File: /tmp/tmpiq143b3q/image_19.png
+User: testuser
+Image size: 4353 bytes
+Broadcasting request to 3 servers...
+  Sending to server 1 at 10.40.45.206:8001
+  Sending to server 2 at 10.40.33.244:8002
+  Sending to server 3 at 10.40.53.40:8003
+  - Server 1 declined: Request assigned to Node 3
+  - Server 2 declined: Request assigned to Node 3
+  ✓ Server 3 processed request
+
+✓ Success!
+Encrypted image saved to: images/encrypted_image_19_1762285403.png
+testuser> 
+=== Uploading Image ===
+File: /tmp/tmpiq143b3q/image_20.png
+User: testuser
+Image size: 4353 bytes
+Broadcasting request to 3 servers...
+  Sending to server 1 at 10.40.45.206:8001
+  Sending to server 2 at 10.40.33.244:8002
+  Sending to server 3 at 10.40.53.40:8003
+  - Server 1 declined: Request assigned to Node 2
+  ✓ Server 2 processed request
+  - Server 3 declined: Request assigned to Node 2
+
+✓ Success!
+Encrypted image saved to: images/encrypted_image_20_1762285403.png
+testuser> 
+=== Uploading Image ===
+File: /tmp/tmpiq143b3q/image_21.png
+User: testuser
+Image size: 4353 bytes
+Broadcasting request to 3 servers...
+  Sending to server 1 at 10.40.45.206:8001
+  Sending to server 2 at 10.40.33.244:8002
+  Sending to server 3 at 10.40.53.40:8003
+  ✓ Server 1 processed request
+  - Server 2 declined: Request assigned to Node 1
+  - Server 3 declined: Request assigned to Node 1
+
+✓ Success!
+Encrypted image saved to: images/encrypted_image_21_1762285403.png
+testuser> 
+=== Uploading Image ===
+File: /tmp/tmpiq143b3q/image_22.png
+User: testuser
+Image size: 4353 bytes
+Broadcasting request to 3 servers...
+  Sending to server 1 at 10.40.45.206:8001
+  Sending to server 2 at 10.40.33.244:8002
+  Sending to server 3 at 10.40.53.40:8003
+  - Server 1 declined: Request assigned to Node 3
+  - Server 2 declined: Request assigned to Node 3
+  ✓ Server 3 processed request
+
+✓ Success!
+Encrypted image saved to: images/encrypted_image_22_1762285403.png
+testuser> 
+=== Uploading Image ===
+File: /tmp/tmpiq143b3q/image_23.png
+User: testuser
+Image size: 4353 bytes
+Broadcasting request to 3 servers...
+  Sending to server 1 at 10.40.45.206:8001
+  Sending to server 2 at 10.40.33.244:8002
+  Sending to server 3 at 10.40.53.40:8003
+  ✓ Server 1 processed request
+  - Server 2 declined: Request assigned to Node 1
+  - Server 3 declined: Request assigned to Node 1
+
+✓ Success!
+Encrypted image saved to: images/encrypted_image_23_1762285403.png
+testuser> 
+=== Uploading Image ===
+File: /tmp/tmpiq143b3q/image_24.png
+User: testuser
+Image size: 4353 bytes
+Broadcasting request to 3 servers...
+  Sending to server 1 at 10.40.45.206:8001
+  Sending to server 2 at 10.40.33.244:8002
+  Sending to server 3 at 10.40.53.40:8003
+  - Server 1 declined: Request assigned to Node 3
+  - Server 2 declined: Request assigned to Node 3
+  ✓ Server 3 processed request
+
+✓ Success!
+Encrypted image saved to: images/encrypted_image_24_1762285403.png
+testuser> 
+=== Uploading Image ===
+File: /tmp/tmpiq143b3q/image_25.png
+User: testuser
+Image size: 4353 bytes
+Broadcasting request to 3 servers...
+  Sending to server 1 at 10.40.45.206:8001
+  Sending to server 2 at 10.40.33.244:8002
+  Sending to server 3 at 10.40.53.40:8003
+  - Server 1 declined: Request assigned to Node 2
+  ✓ Server 2 processed request
+  - Server 3 declined: Request assigned to Node 2
+
+✓ Success!
+Encrypted image saved to: images/encrypted_image_25_1762285403.png
+testuser> 
+=== Uploading Image ===
+File: /tmp/tmpiq143b3q/image_26.png
+User: testuser
+Image size: 4353 bytes
+Broadcasting request to 3 servers...
+  Sending to server 1 at 10.40.45.206:8001
+  Sending to server 3 at 10.40.53.40:8003
+  Sending to server 2 at 10.40.33.244:8002
+  - Server 1 declined: Request assigned to Node 2
+  ✓ Server 2 processed request
+  - Server 3 declined: Request assigned to Node 2
+
+✓ Success!
+Encrypted image saved to: images/encrypted_image_26_1762285403.png
+testuser> 
+=== Uploading Image ===
+File: /tmp/tmpiq143b3q/image_27.png
+User: testuser
+Image size: 4353 bytes
+Broadcasting request to 3 servers...
+  Sending to server 1 at 10.40.45.206:8001
+  Sending to server 2 at 10.40.33.244:8002
+  Sending to server 3 at 10.40.53.40:8003
+  - Server 1 declined: Request assigned to Node 2
+  ✓ Server 2 processed request
+  - Server 3 declined: Request assigned to Node 2
+
+✓ Success!
+Encrypted image saved to: images/encrypted_image_27_1762285403.png
+testuser> 
+=== Uploading Image ===
+File: /tmp/tmpiq143b3q/image_28.png
+User: testuser
+Image size: 4353 bytes
+Broadcasting request to 3 servers...
+  Sending to server 1 at 10.40.45.206:8001
+  Sending to server 2 at 10.40.33.244:8002
+  Sending to server 3 at 10.40.53.40:8003
+  ✓ Server 1 processed request
+  - Server 2 declined: Request assigned to Node 1
+  - Server 3 declined: Request assigned to Node 1
+
+✓ Success!
+Encrypted image saved to: images/encrypted_image_28_1762285403.png
+testuser> 
+=== Uploading Image ===
+File: /tmp/tmpiq143b3q/image_29.png
+User: testuser
+Image size: 4353 bytes
+Broadcasting request to 3 servers...
+  Sending to server 1 at 10.40.45.206:8001
+  Sending to server 2 at 10.40.33.244:8002
+  Sending to server 3 at 10.40.53.40:8003
+  - Server 1 declined: Request assigned to Node 2
+  ✓ Server 2 processed request
+  - Server 3 declined: Request assigned to Node 2
+
+✓ Success!
+Encrypted image saved to: images/encrypted_image_29_1762285404.png
+testuser> 
+=== Uploading Image ===
+File: /tmp/tmpiq143b3q/image_30.png
+User: testuser
+Image size: 4353 bytes
+Broadcasting request to 3 servers...
+  Sending to server 1 at 10.40.45.206:8001
+  Sending to server 2 at 10.40.33.244:8002
+  Sending to server 3 at 10.40.53.40:8003
+  ✓ Server 1 processed request
+  - Server 2 declined: Request assigned to Node 1
+  - Server 3 declined: Request assigned to Node 1
+
+✓ Success!
+Encrypted image saved to: images/encrypted_image_30_1762285404.png
+testuser> Goodbye!
