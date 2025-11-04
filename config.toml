@@ -1,0 +1,14 @@
+# Distributed Image Storage System Configuration
+#
+# For localhost testing, use 127.0.0.1 addresses (default)
+# For distributed deployment, replace with actual IP addresses of each machine
+#
+# Example for distributed setup:
+#   node1 = "192.168.1.10:8001"
+#   node2 = "192.168.1.11:8002"
+#   node3 = "192.168.1.12:8003"
+
+[servers]
+node1 = "127.0.0.1:8001"
+node2 = "127.0.0.1:8002"
+node3 = "127.0.0.1:8003"

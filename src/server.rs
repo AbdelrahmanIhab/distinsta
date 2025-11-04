@@ -1,9 +1,11 @@
 mod bully;
+mod config;
 mod encryption;
 mod loadbalancer;
 mod protocol;
 
 use bully::{BullyElection, BullyMessage};
+use config::Config;
 use encryption::{encrypt_data, generate_key_from_username};
 use loadbalancer::LoadBalancer;
 use protocol::{ClientRequest, ServerResponse};
@@ -196,17 +198,24 @@ async fn main() {
 
     let node_id: u32 = args[1].parse().expect("Node ID must be a number");
 
-    // Define server addresses
-    let base_port = 8000;
-    let address = format!("127.0.0.1:{}", base_port + node_id);
+    // Load configuration from config.toml
+    let config = Config::load("config.toml").expect("Failed to load config.toml");
+
+    // Get this node's address from config
+    let address = config
+        .get_server_address(node_id)
+        .expect(&format!("Node {} not found in config.toml", node_id));
+
+    println!("Node {} will bind to {}", node_id, address);
 
     let mut node = ServerNode::new(node_id, address);
 
-    // Add peers (hardcoded for simplicity - 3 nodes)
+    // Add peers from config
     for peer_id in 1..=3 {
         if peer_id != node_id {
-            let peer_address = format!("127.0.0.1:{}", base_port + peer_id);
-            node.add_peer(peer_id, peer_address).await;
+            if let Some(peer_address) = config.get_server_address(peer_id) {
+                node.add_peer(peer_id, peer_address).await;
+            }
         }
     }
 

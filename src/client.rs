@@ -1,5 +1,7 @@
+mod config;
 mod protocol;
 
+use config::Config;
 use protocol::{ClientRequest, ServerResponse};
 use std::env;
 use std::fs;
@@ -221,12 +223,19 @@ async fn main() {
 
     let username = args[1].clone();
 
-    // Default server addresses - client multicasts to all
-    let server_addresses = vec![
-        "127.0.0.1:8001".to_string(),
-        "127.0.0.1:8002".to_string(),
-        "127.0.0.1:8003".to_string(),
-    ];
+    // Load configuration from config.toml
+    let config = Config::load("config.toml").expect("Failed to load config.toml");
+    let server_addresses = config.get_all_server_addresses();
+
+    if server_addresses.is_empty() {
+        eprintln!("Error: No servers found in config.toml");
+        std::process::exit(1);
+    }
+
+    println!("Client will broadcast to servers:");
+    for addr in &server_addresses {
+        println!("  - {}", addr);
+    }
 
     let client = Client::new(username, server_addresses);
     client.run_repl().await;
