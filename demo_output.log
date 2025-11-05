@@ -1,0 +1,596 @@
+warning: unreachable pattern
+   --> src/client.rs:149:13
+    |
+149 |             _ => {
+    |             ^ no value can reach this
+    |
+note: multiple earlier patterns match some of the same values
+   --> src/client.rs:149:13
+    |
+119 |             ServerResponse::EncryptedImageData { data } => {
+    |             ------------------------------------------- matches some of the same values
+...
+146 |             ServerResponse::Error { message } => {
+    |             --------------------------------- matches some of the same values
+...
+149 |             _ => {
+    |             ^ collectively making this unreachable
+    = note: `#[warn(unreachable_patterns)]` (part of `#[warn(unused)]`) on by default
+
+warning: enum `InternalMessage` is never used
+  --> src/protocol.rs:21:10
+   |
+21 | pub enum InternalMessage {
+   |          ^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `distinst` (bin "client") generated 2 warnings
+    Finished `release` profile [optimized] target(s) in 0.02s
+     Running `target/release/client demo`
+Client will broadcast to servers:
+  - 10.40.45.206:8001
+  - 10.40.33.244:8002
+  - 10.40.53.40:8003
+
+=== Distributed Image Storage Client (REPL) ===
+User: demo
+Multicast mode: Broadcasting to all servers
+Type 'help' for commands, 'quit' to exit
+================================================
+
+demo> 
+=== Uploading Image ===
+File: /tmp/tmpnqkgjnvp/demo_image_1.png
+User: demo
+Image size: 18400147 bytes
+Broadcasting request to 3 servers...
+  Sending to server 1 at 10.40.45.206:8001
+  Sending to server 2 at 10.40.33.244:8002
+  Sending to server 3 at 10.40.53.40:8003
+  ✓ Server 2 processed request
+
+✓ Success!
+Encrypted image saved to: images/encrypted_demo_image_1_1762341680.png
+demo> 
+=== Uploading Image ===
+File: /tmp/tmpnqkgjnvp/demo_image_2.png
+User: demo
+Image size: 26617090 bytes
+Broadcasting request to 3 servers...
+  Sending to server 1 at 10.40.45.206:8001
+  Sending to server 2 at 10.40.33.244:8002
+  Sending to server 3 at 10.40.53.40:8003
+  ✓ Server 2 processed request
+
+✓ Success!
+Encrypted image saved to: images/encrypted_demo_image_2_1762341717.png
+demo> 
+=== Uploading Image ===
+File: /tmp/tmpnqkgjnvp/demo_image_3.png
+User: demo
+Image size: 32347699 bytes
+Broadcasting request to 3 servers...
+  Sending to server 1 at 10.40.45.206:8001
+  Sending to server 2 at 10.40.33.244:8002
+  Sending to server 3 at 10.40.53.40:8003
+Upload failed: No server processed the request (all servers declined)
+
+demo> 
+=== Uploading Image ===
+File: /tmp/tmpnqkgjnvp/demo_image_4.png
+User: demo
+Image size: 7741943 bytes
+Broadcasting request to 3 servers...
+  Sending to server 1 at 10.40.45.206:8001
+  Sending to server 2 at 10.40.33.244:8002
+  Sending to server 3 at 10.40.53.40:8003
+Upload failed: No server processed the request (all servers declined)
+
+demo> 
+=== Uploading Image ===
+File: /tmp/tmpnqkgjnvp/demo_image_5.png
+User: demo
+Image size: 12539927 bytes
+Broadcasting request to 3 servers...
+  Sending to server 1 at 10.40.45.206:8001
+  Sending to server 2 at 10.40.33.244:8002
+  Sending to server 3 at 10.40.53.40:8003
+Upload failed: No server processed the request (all servers declined)
+
+demo> 
+=== Uploading Image ===
+File: /tmp/tmpnqkgjnvp/demo_image_6.png
+User: demo
+Image size: 25502966 bytes
+Broadcasting request to 3 servers...
+  Sending to server 1 at 10.40.45.206:8001
+  Sending to server 2 at 10.40.33.244:8002
+  Sending to server 3 at 10.40.53.40:8003
+Upload failed: No server processed the request (all servers declined)
+
+demo> 
+=== Uploading Image ===
+File: /tmp/tmpnqkgjnvp/demo_image_7.png
+User: demo
+Image size: 29066018 bytes
+Broadcasting request to 3 servers...
+  Sending to server 1 at 10.40.45.206:8001
+  Sending to server 2 at 10.40.33.244:8002
+  Sending to server 3 at 10.40.53.40:8003
+Upload failed: No server processed the request (all servers declined)
+
+demo> 
+=== Uploading Image ===
+File: /tmp/tmpnqkgjnvp/demo_image_8.png
+User: demo
+Image size: 9510078 bytes
+Broadcasting request to 3 servers...
+  Sending to server 1 at 10.40.45.206:8001
+  Sending to server 2 at 10.40.33.244:8002
+  Sending to server 3 at 10.40.53.40:8003
+Upload failed: No server processed the request (all servers declined)
+
+demo> 
+=== Uploading Image ===
+File: /tmp/tmpnqkgjnvp/demo_image_9.png
+User: demo
+Image size: 13578881 bytes
+Broadcasting request to 3 servers...
+  Sending to server 1 at 10.40.45.206:8001
+  Sending to server 2 at 10.40.33.244:8002
+  Sending to server 3 at 10.40.53.40:8003
+Upload failed: No server processed the request (all servers declined)
+
+demo> 
+=== Uploading Image ===
+File: /tmp/tmpnqkgjnvp/demo_image_10.png
+User: demo
+Image size: 19577576 bytes
+Broadcasting request to 3 servers...
+  Sending to server 1 at 10.40.45.206:8001
+  Sending to server 2 at 10.40.33.244:8002
+  Sending to server 3 at 10.40.53.40:8003
+Upload failed: No server processed the request (all servers declined)
+
+demo> 
+=== Uploading Image ===
+File: /tmp/tmpnqkgjnvp/demo_image_11.png
+User: demo
+Image size: 30694574 bytes
+Broadcasting request to 3 servers...
+  Sending to server 1 at 10.40.45.206:8001
+  Sending to server 2 at 10.40.33.244:8002
+  Sending to server 3 at 10.40.53.40:8003
+Upload failed: No server processed the request (all servers declined)
+
+demo> 
+=== Uploading Image ===
+File: /tmp/tmpnqkgjnvp/demo_image_12.png
+User: demo
+Image size: 9087524 bytes
+Broadcasting request to 3 servers...
+  Sending to server 1 at 10.40.45.206:8001
+  Sending to server 2 at 10.40.33.244:8002
+  Sending to server 3 at 10.40.53.40:8003
+Upload failed: No server processed the request (all servers declined)
+
+demo> 
+=== Uploading Image ===
+File: /tmp/tmpnqkgjnvp/demo_image_13.png
+User: demo
+Image size: 15630058 bytes
+Broadcasting request to 3 servers...
+  Sending to server 1 at 10.40.45.206:8001
+  Sending to server 2 at 10.40.33.244:8002
+  Sending to server 3 at 10.40.53.40:8003
+Upload failed: No server processed the request (all servers declined)
+
+demo> 
+=== Uploading Image ===
+File: /tmp/tmpnqkgjnvp/demo_image_14.png
+User: demo
+Image size: 21428169 bytes
+Broadcasting request to 3 servers...
+  Sending to server 1 at 10.40.45.206:8001
+  Sending to server 2 at 10.40.33.244:8002
+  Sending to server 3 at 10.40.53.40:8003
+Upload failed: No server processed the request (all servers declined)
+
+demo> 
+=== Uploading Image ===
+File: /tmp/tmpnqkgjnvp/demo_image_15.png
+User: demo
+Image size: 33420570 bytes
+Broadcasting request to 3 servers...
+  Sending to server 1 at 10.40.45.206:8001
+  Sending to server 2 at 10.40.33.244:8002
+  Sending to server 3 at 10.40.53.40:8003
+Upload failed: No server processed the request (all servers declined)
+
+demo> 
+=== Uploading Image ===
+File: /tmp/tmpnqkgjnvp/demo_image_16.png
+User: demo
+Image size: 7965232 bytes
+Broadcasting request to 3 servers...
+  Sending to server 1 at 10.40.45.206:8001
+  Sending to server 2 at 10.40.33.244:8002
+  Sending to server 3 at 10.40.53.40:8003
+Upload failed: No server processed the request (all servers declined)
+
+demo> 
+=== Uploading Image ===
+File: /tmp/tmpnqkgjnvp/demo_image_17.png
+User: demo
+Image size: 18519234 bytes
+Broadcasting request to 3 servers...
+  Sending to server 1 at 10.40.45.206:8001
+  Sending to server 2 at 10.40.33.244:8002
+  Sending to server 3 at 10.40.53.40:8003
+Upload failed: No server processed the request (all servers declined)
+
+demo> 
+=== Uploading Image ===
+File: /tmp/tmpnqkgjnvp/demo_image_18.png
+User: demo
+Image size: 20665280 bytes
+Broadcasting request to 3 servers...
+  Sending to server 1 at 10.40.45.206:8001
+  Sending to server 2 at 10.40.33.244:8002
+  Sending to server 3 at 10.40.53.40:8003
+Upload failed: No server processed the request (all servers declined)
+
+demo> 
+=== Uploading Image ===
+File: /tmp/tmpnqkgjnvp/demo_image_19.png
+User: demo
+Image size: 36764888 bytes
+Broadcasting request to 3 servers...
+  Sending to server 1 at 10.40.45.206:8001
+  Sending to server 2 at 10.40.33.244:8002
+  Sending to server 3 at 10.40.53.40:8003
+Upload failed: No server processed the request (all servers declined)
+
+demo> 
+=== Uploading Image ===
+File: /tmp/tmpnqkgjnvp/demo_image_20.png
+User: demo
+Image size: 9087524 bytes
+Broadcasting request to 3 servers...
+  Sending to server 1 at 10.40.45.206:8001
+  Sending to server 2 at 10.40.33.244:8002
+  Sending to server 3 at 10.40.53.40:8003
+Upload failed: No server processed the request (all servers declined)
+
+demo> 
+=== Uploading Image ===
+File: /tmp/tmpnqkgjnvp/demo_image_21.png
+User: demo
+Image size: 17389007 bytes
+Broadcasting request to 3 servers...
+  Sending to server 1 at 10.40.45.206:8001
+  Sending to server 2 at 10.40.33.244:8002
+  Sending to server 3 at 10.40.53.40:8003
+Upload failed: No server processed the request (all servers declined)
+
+demo> 
+=== Uploading Image ===
+File: /tmp/tmpnqkgjnvp/demo_image_22.png
+User: demo
+Image size: 24429777 bytes
+Broadcasting request to 3 servers...
+  Sending to server 1 at 10.40.45.206:8001
+  Sending to server 2 at 10.40.33.244:8002
+  Sending to server 3 at 10.40.53.40:8003
+Upload failed: No server processed the request (all servers declined)
+
+demo> 
+=== Uploading Image ===
+File: /tmp/tmpnqkgjnvp/demo_image_23.png
+User: demo
+Image size: 29122076 bytes
+Broadcasting request to 3 servers...
+  Sending to server 1 at 10.40.45.206:8001
+  Sending to server 2 at 10.40.33.244:8002
+  Sending to server 3 at 10.40.53.40:8003
+Upload failed: No server processed the request (all servers declined)
+
+demo> 
+=== Uploading Image ===
+File: /tmp/tmpnqkgjnvp/demo_image_24.png
+User: demo
+Image size: 10395338 bytes
+Broadcasting request to 3 servers...
+  Sending to server 1 at 10.40.45.206:8001
+  Sending to server 2 at 10.40.33.244:8002
+  Sending to server 3 at 10.40.53.40:8003
+Upload failed: No server processed the request (all servers declined)
+
+demo> 
+=== Uploading Image ===
+File: /tmp/tmpnqkgjnvp/demo_image_25.png
+User: demo
+Image size: 17912984 bytes
+Broadcasting request to 3 servers...
+  Sending to server 1 at 10.40.45.206:8001
+  Sending to server 2 at 10.40.33.244:8002
+  Sending to server 3 at 10.40.53.40:8003
+Upload failed: No server processed the request (all servers declined)
+
+demo> 
+=== Uploading Image ===
+File: /tmp/tmpnqkgjnvp/demo_image_26.png
+User: demo
+Image size: 25942223 bytes
+Broadcasting request to 3 servers...
+  Sending to server 1 at 10.40.45.206:8001
+  Sending to server 2 at 10.40.33.244:8002
+  Sending to server 3 at 10.40.53.40:8003
+Upload failed: No server processed the request (all servers declined)
+
+demo> 
+=== Uploading Image ===
+File: /tmp/tmpnqkgjnvp/demo_image_27.png
+User: demo
+Image size: 36701890 bytes
+Broadcasting request to 3 servers...
+  Sending to server 1 at 10.40.45.206:8001
+  Sending to server 2 at 10.40.33.244:8002
+  Sending to server 3 at 10.40.53.40:8003
+Upload failed: No server processed the request (all servers declined)
+
+demo> 
+=== Uploading Image ===
+File: /tmp/tmpnqkgjnvp/demo_image_28.png
+User: demo
+Image size: 8092848 bytes
+Broadcasting request to 3 servers...
+  Sending to server 1 at 10.40.45.206:8001
+  Sending to server 2 at 10.40.33.244:8002
+  Sending to server 3 at 10.40.53.40:8003
+Upload failed: No server processed the request (all servers declined)
+
+demo> 
+=== Uploading Image ===
+File: /tmp/tmpnqkgjnvp/demo_image_29.png
+User: demo
+Image size: 13022954 bytes
+Broadcasting request to 3 servers...
+  Sending to server 1 at 10.40.45.206:8001
+  Sending to server 2 at 10.40.33.244:8002
+  Sending to server 3 at 10.40.53.40:8003
+Upload failed: No server processed the request (all servers declined)
+
+demo> 
+=== Uploading Image ===
+File: /tmp/tmpnqkgjnvp/demo_image_30.png
+User: demo
+Image size: 24207686 bytes
+Broadcasting request to 3 servers...
+  Sending to server 1 at 10.40.45.206:8001
+  Sending to server 2 at 10.40.33.244:8002
+  Sending to server 3 at 10.40.53.40:8003
+Upload failed: No server processed the request (all servers declined)
+
+demo> 
+=== Uploading Image ===
+File: /tmp/tmpnqkgjnvp/demo_image_31.png
+User: demo
+Image size: 31622811 bytes
+Broadcasting request to 3 servers...
+  Sending to server 1 at 10.40.45.206:8001
+  Sending to server 2 at 10.40.33.244:8002
+  Sending to server 3 at 10.40.53.40:8003
+Upload failed: No server processed the request (all servers declined)
+
+demo> 
+=== Uploading Image ===
+File: /tmp/tmpnqkgjnvp/demo_image_32.png
+User: demo
+Image size: 9414158 bytes
+Broadcasting request to 3 servers...
+  Sending to server 1 at 10.40.45.206:8001
+  Sending to server 2 at 10.40.33.244:8002
+  Sending to server 3 at 10.40.53.40:8003
+Upload failed: No server processed the request (all servers declined)
+
+demo> 
+=== Uploading Image ===
+File: /tmp/tmpnqkgjnvp/demo_image_33.png
+User: demo
+Image size: 14263922 bytes
+Broadcasting request to 3 servers...
+  Sending to server 1 at 10.40.45.206:8001
+  Sending to server 2 at 10.40.33.244:8002
+  Sending to server 3 at 10.40.53.40:8003
+Upload failed: No server processed the request (all servers declined)
+
+demo> 
+=== Uploading Image ===
+File: /tmp/tmpnqkgjnvp/demo_image_34.png
+User: demo
+Image size: 21332052 bytes
+Broadcasting request to 3 servers...
+  Sending to server 1 at 10.40.45.206:8001
+  Sending to server 2 at 10.40.33.244:8002
+  Sending to server 3 at 10.40.53.40:8003
+Upload failed: No server processed the request (all servers declined)
+
+demo> 
+=== Uploading Image ===
+File: /tmp/tmpnqkgjnvp/demo_image_35.png
+User: demo
+Image size: 34919091 bytes
+Broadcasting request to 3 servers...
+  Sending to server 1 at 10.40.45.206:8001
+  Sending to server 2 at 10.40.33.244:8002
+  Sending to server 3 at 10.40.53.40:8003
+Upload failed: No server processed the request (all servers declined)
+
+demo> 
+=== Uploading Image ===
+File: /tmp/tmpnqkgjnvp/demo_image_36.png
+User: demo
+Image size: 11838457 bytes
+Broadcasting request to 3 servers...
+  Sending to server 1 at 10.40.45.206:8001
+  Sending to server 2 at 10.40.33.244:8002
+  Sending to server 3 at 10.40.53.40:8003
+Upload failed: No server processed the request (all servers declined)
+
+demo> 
+=== Uploading Image ===
+File: /tmp/tmpnqkgjnvp/demo_image_37.png
+User: demo
+Image size: 16420505 bytes
+Broadcasting request to 3 servers...
+  Sending to server 1 at 10.40.45.206:8001
+  Sending to server 2 at 10.40.33.244:8002
+  Sending to server 3 at 10.40.53.40:8003
+Upload failed: No server processed the request (all servers declined)
+
+demo> 
+=== Uploading Image ===
+File: /tmp/tmpnqkgjnvp/demo_image_38.png
+User: demo
+Image size: 23446712 bytes
+Broadcasting request to 3 servers...
+  Sending to server 1 at 10.40.45.206:8001
+  Sending to server 2 at 10.40.33.244:8002
+  Sending to server 3 at 10.40.53.40:8003
+Upload failed: No server processed the request (all servers declined)
+
+demo> 
+=== Uploading Image ===
+File: /tmp/tmpnqkgjnvp/demo_image_39.png
+User: demo
+Image size: 29534837 bytes
+Broadcasting request to 3 servers...
+  Sending to server 1 at 10.40.45.206:8001
+  Sending to server 2 at 10.40.33.244:8002
+  Sending to server 3 at 10.40.53.40:8003
+Upload failed: No server processed the request (all servers declined)
+
+demo> 
+=== Uploading Image ===
+File: /tmp/tmpnqkgjnvp/demo_image_40.png
+User: demo
+Image size: 8221478 bytes
+Broadcasting request to 3 servers...
+  Sending to server 1 at 10.40.45.206:8001
+  Sending to server 2 at 10.40.33.244:8002
+  Sending to server 3 at 10.40.53.40:8003
+Upload failed: No server processed the request (all servers declined)
+
+demo> 
+=== Uploading Image ===
+File: /tmp/tmpnqkgjnvp/demo_image_41.png
+User: demo
+Image size: 17810484 bytes
+Broadcasting request to 3 servers...
+  Sending to server 1 at 10.40.45.206:8001
+  Sending to server 2 at 10.40.33.244:8002
+  Sending to server 3 at 10.40.53.40:8003
+Upload failed: No server processed the request (all servers declined)
+
+demo> 
+=== Uploading Image ===
+File: /tmp/tmpnqkgjnvp/demo_image_42.png
+User: demo
+Image size: 22664903 bytes
+Broadcasting request to 3 servers...
+  Sending to server 1 at 10.40.45.206:8001
+  Sending to server 2 at 10.40.33.244:8002
+  Sending to server 3 at 10.40.53.40:8003
+Upload failed: No server processed the request (all servers declined)
+
+demo> 
+=== Uploading Image ===
+File: /tmp/tmpnqkgjnvp/demo_image_43.png
+User: demo
+Image size: 35970973 bytes
+Broadcasting request to 3 servers...
+  Sending to server 1 at 10.40.45.206:8001
+  Sending to server 2 at 10.40.33.244:8002
+  Sending to server 3 at 10.40.53.40:8003
+Upload failed: No server processed the request (all servers declined)
+
+demo> 
+=== Uploading Image ===
+File: /tmp/tmpnqkgjnvp/demo_image_44.png
+User: demo
+Image size: 9574289 bytes
+Broadcasting request to 3 servers...
+  Sending to server 1 at 10.40.45.206:8001
+  Sending to server 2 at 10.40.33.244:8002
+  Sending to server 3 at 10.40.53.40:8003
+Upload failed: No server processed the request (all servers declined)
+
+demo> 
+=== Uploading Image ===
+File: /tmp/tmpnqkgjnvp/demo_image_45.png
+User: demo
+Image size: 14527120 bytes
+Broadcasting request to 3 servers...
+  Sending to server 1 at 10.40.45.206:8001
+  Sending to server 2 at 10.40.33.244:8002
+  Sending to server 3 at 10.40.53.40:8003
+Upload failed: No server processed the request (all servers declined)
+
+demo> 
+=== Uploading Image ===
+File: /tmp/tmpnqkgjnvp/demo_image_46.png
+User: demo
+Image size: 26599212 bytes
+Broadcasting request to 3 servers...
+  Sending to server 1 at 10.40.45.206:8001
+  Sending to server 2 at 10.40.33.244:8002
+  Sending to server 3 at 10.40.53.40:8003
+Upload failed: No server processed the request (all servers declined)
+
+demo> 
+=== Uploading Image ===
+File: /tmp/tmpnqkgjnvp/demo_image_47.png
+User: demo
+Image size: 32013578 bytes
+Broadcasting request to 3 servers...
+  Sending to server 1 at 10.40.45.206:8001
+  Sending to server 2 at 10.40.33.244:8002
+  Sending to server 3 at 10.40.53.40:8003
+Upload failed: No server processed the request (all servers declined)
+
+demo> 
+=== Uploading Image ===
+File: /tmp/tmpnqkgjnvp/demo_image_48.png
+User: demo
+Image size: 8542427 bytes
+Broadcasting request to 3 servers...
+  Sending to server 1 at 10.40.45.206:8001
+  Sending to server 2 at 10.40.33.244:8002
+  Sending to server 3 at 10.40.53.40:8003
+Upload failed: No server processed the request (all servers declined)
+
+demo> 
+=== Uploading Image ===
+File: /tmp/tmpnqkgjnvp/demo_image_49.png
+User: demo
+Image size: 18104109 bytes
+Broadcasting request to 3 servers...
+  Sending to server 1 at 10.40.45.206:8001
+  Sending to server 2 at 10.40.33.244:8002
+  Sending to server 3 at 10.40.53.40:8003
+Upload failed: No server processed the request (all servers declined)
+
+demo> 
+=== Uploading Image ===
+File: /tmp/tmpnqkgjnvp/demo_image_50.png
+User: demo
+Image size: 24756206 bytes
+Broadcasting request to 3 servers...
+  Sending to server 1 at 10.40.45.206:8001
+  Sending to server 2 at 10.40.33.244:8002
+  Sending to server 3 at 10.40.53.40:8003
+Upload failed: No server processed the request (all servers declined)
+
+demo> Goodbye!
