@@ -258,8 +258,10 @@ impl Client {
     }
 
     async fn start_p2p_server(self: Arc<Self>) {
-        let listener = TcpListener::bind(&self.p2p_address).await.unwrap();
-        println!("P2P server listening on {}", self.p2p_address);
+        let bind_addr = format!("0.0.0.0:{}", self.p2p_port);
+        let listener = TcpListener::bind(&bind_addr).await.unwrap();
+        println!("P2P server listening on {}", bind_addr);
+        println!("P2P address registered as: {}", self.p2p_address);
 
         loop {
             match listener.accept().await {
@@ -368,10 +370,17 @@ async fn main() {
     let config = Config::load("config.toml").expect("Failed to load config");
     let server_addresses: Vec<String> = config.servers.values().cloned().collect();
 
-    // Get local IP for P2P
-    let p2p_address = format!("0.0.0.0:{}", p2p_port);
+    // Determine P2P address for registration
+    // User can provide IP as 3rd argument, otherwise use 0.0.0.0 (localhost only)
+    let p2p_ip = if args.len() > 3 {
+        args[3].clone()  // User provides their IP: cargo run --bin client alice 9001 192.168.1.100
+    } else {
+        "127.0.0.1".to_string()  // Default to localhost for local testing
+    };
+    let p2p_register_address = format!("{}:{}", p2p_ip, p2p_port);
+    let p2p_bind_address = format!("0.0.0.0:{}", p2p_port);  // Bind to all interfaces
 
-    let client = Arc::new(Client::new(username.clone(), server_addresses, p2p_port, p2p_address));
+    let client = Arc::new(Client::new(username.clone(), server_addresses, p2p_port, p2p_register_address));
 
     // Start P2P server
     let client_clone = Arc::clone(&client);

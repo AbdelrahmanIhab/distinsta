@@ -57,34 +57,36 @@ pub fn embed_metadata(image: &RgbaImage, metadata: &ImageMetadata) -> Result<Rgb
     let metadata_bytes = metadata_json.as_bytes();
 
     // Check if image is large enough
-    let required_pixels = (metadata_bytes.len() + 4) * 4; // +4 for length header
-    if required_pixels > (image.width() * image.height()) as usize {
-        return Err("Image too small for metadata".to_string());
+    // Need 32 pixels for length (4 bytes * 8 bits) + 8 pixels per metadata byte
+    let required_pixels = 32 + (metadata_bytes.len() * 8);
+    let total_pixels = (image.width() * image.height() * 4) as usize; // 4 channels per pixel
+    if required_pixels > total_pixels {
+        return Err(format!("Image too small: need {} pixels, have {}", required_pixels, total_pixels));
     }
 
     let mut new_image = image.clone();
     let pixels = new_image.as_mut();
 
-    // Embed metadata length in first 4 pixels (16 bytes for u32)
+    // Embed metadata length in first 32 pixels (4 bytes, 8 bits each)
     let len = metadata_bytes.len() as u32;
     let len_bytes = len.to_le_bytes();
-    for i in 0..4 {
-        pixels[i] = (pixels[i] & 0xFE) | (len_bytes[i] & 1);
+    for (byte_idx, &len_byte) in len_bytes.iter().enumerate() {
+        for bit_idx in 0..8 {
+            let pixel_pos = byte_idx * 8 + bit_idx;
+            if pixel_pos < pixels.len() {
+                let bit_value = (len_byte >> bit_idx) & 1;
+                pixels[pixel_pos] = (pixels[pixel_pos] & 0xFE) | bit_value;
+            }
+        }
     }
 
-    // Embed metadata starting from pixel 4
-    for (i, &byte) in metadata_bytes.iter().enumerate() {
-        let pixel_idx = (i + 4) * 4;
-        if pixel_idx >= pixels.len() {
-            break;
-        }
-
-        // Embed byte across 4 consecutive pixel channels using LSB
-        for bit in 0..8 {
-            let channel_idx = pixel_idx + (bit / 2);
-            if channel_idx < pixels.len() {
-                let bit_value = (byte >> bit) & 1;
-                pixels[channel_idx] = (pixels[channel_idx] & 0xFE) | bit_value;
+    // Embed metadata starting after length (32 pixels)
+    for (byte_idx, &byte) in metadata_bytes.iter().enumerate() {
+        for bit_idx in 0..8 {
+            let pixel_pos = 32 + byte_idx * 8 + bit_idx;
+            if pixel_pos < pixels.len() {
+                let bit_value = (byte >> bit_idx) & 1;
+                pixels[pixel_pos] = (pixels[pixel_pos] & 0xFE) | bit_value;
             }
         }
     }
@@ -96,31 +98,35 @@ pub fn embed_metadata(image: &RgbaImage, metadata: &ImageMetadata) -> Result<Rgb
 pub fn extract_metadata(image: &RgbaImage) -> Result<ImageMetadata, String> {
     let pixels = image.as_raw();
 
-    // Extract metadata length from first 4 pixels
+    // Extract metadata length from first 32 pixels (4 bytes, 8 bits each)
     let mut len_bytes = [0u8; 4];
-    for i in 0..4 {
-        if i >= pixels.len() {
-            return Err("Image too small".to_string());
+    for byte_idx in 0..4 {
+        let mut byte = 0u8;
+        for bit_idx in 0..8 {
+            let pixel_pos = byte_idx * 8 + bit_idx;
+            if pixel_pos >= pixels.len() {
+                return Err("Image too small".to_string());
+            }
+            let bit_value = pixels[pixel_pos] & 1;
+            byte |= bit_value << bit_idx;
         }
-        len_bytes[i] = pixels[i] & 1;
+        len_bytes[byte_idx] = byte;
     }
     let metadata_len = u32::from_le_bytes(len_bytes) as usize;
 
     if metadata_len == 0 || metadata_len > 1_000_000 {
-        return Err("Invalid metadata length".to_string());
+        return Err(format!("Invalid metadata length: {}", metadata_len));
     }
 
-    // Extract metadata bytes
+    // Extract metadata bytes starting after length (32 pixels)
     let mut metadata_bytes = Vec::new();
-    for i in 0..metadata_len {
-        let pixel_idx = (i + 4) * 4;
+    for byte_idx in 0..metadata_len {
         let mut byte = 0u8;
-
-        for bit in 0..8 {
-            let channel_idx = pixel_idx + (bit / 2);
-            if channel_idx < pixels.len() {
-                let bit_value = pixels[channel_idx] & 1;
-                byte |= bit_value << bit;
+        for bit_idx in 0..8 {
+            let pixel_pos = 32 + byte_idx * 8 + bit_idx;
+            if pixel_pos < pixels.len() {
+                let bit_value = pixels[pixel_pos] & 1;
+                byte |= bit_value << bit_idx;
             }
         }
         metadata_bytes.push(byte);
