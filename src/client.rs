@@ -360,7 +360,15 @@ impl Client {
 async fn main() {
     let args: Vec<String> = env::args().collect();
     if args.len() < 3 {
-        eprintln!("Usage: {} <username> <p2p_port>", args[0]);
+        eprintln!("Usage: {} <username> <p2p_port> [ip_address]", args[0]);
+        eprintln!();
+        eprintln!("Examples:");
+        eprintln!("  Local testing:    cargo run --bin client alice 9001");
+        eprintln!("  Distributed:      cargo run --bin client alice 9001 192.168.1.100");
+        eprintln!();
+        eprintln!("To find your IP:");
+        eprintln!("  Linux/Mac:  hostname -I");
+        eprintln!("  Windows:    ipconfig");
         std::process::exit(1);
     }
 
@@ -378,7 +386,6 @@ async fn main() {
         "127.0.0.1".to_string()  // Default to localhost for local testing
     };
     let p2p_register_address = format!("{}:{}", p2p_ip, p2p_port);
-    let p2p_bind_address = format!("0.0.0.0:{}", p2p_port);  // Bind to all interfaces
 
     let client = Arc::new(Client::new(username.clone(), server_addresses, p2p_port, p2p_register_address));
 
@@ -510,6 +517,10 @@ async fn main() {
                 println!("  my_images                                - List my images");
                 println!("  received                                 - List received images");
                 println!("  quit                                     - Exit");
+                println!("\nP2P Addressing:");
+                println!("  The 'peers' command shows each peer's P2P address.");
+                println!("  Use that EXACT address in the 'request' command.");
+                println!("  Local: 127.0.0.1:port  |  Distributed: actual_ip:port");
             }
             "quit" => {
                 println!("Goodbye!");
