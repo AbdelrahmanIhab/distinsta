@@ -1,11 +1,15 @@
 mod bully;
 mod config;
+mod discovery;
 mod encryption;
 mod loadbalancer;
+mod p2p_protocol;
 mod protocol;
+mod steganography;
 
 use bully::{BullyElection, BullyMessage};
 use config::Config;
+use discovery::UserRegistry;
 use encryption::{encrypt_data, generate_key_from_username};
 use loadbalancer::LoadBalancer;
 use protocol::{ClientRequest, ServerResponse};
@@ -13,6 +17,7 @@ use std::env;
 use std::sync::Arc;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::{TcpListener, TcpStream};
+use tokio::sync::RwLock;
 use tokio::time::{sleep, Duration};
 
 struct ServerNode {
@@ -20,6 +25,7 @@ struct ServerNode {
     address: String,
     bully: Arc<BullyElection>,
     load_balancer: Option<LoadBalancer>,
+    discovery: Arc<RwLock<UserRegistry>>,
 }
 
 impl ServerNode {
@@ -31,6 +37,7 @@ impl ServerNode {
             address: address.clone(),
             bully,
             load_balancer: None,
+            discovery: Arc::new(RwLock::new(UserRegistry::new())),
         }
     }
 
@@ -92,6 +99,7 @@ impl ServerNode {
             address: self.address.clone(),
             bully: Arc::clone(&self.bully),
             load_balancer: self.load_balancer.clone(),
+            discovery: Arc::clone(&self.discovery),
         }
     }
 
@@ -104,6 +112,24 @@ impl ServerNode {
             Ok(_) => {
                 // Try to parse as BullyMessage first
                 if let Ok(msg) = serde_json::from_str::<BullyMessage>(&line) {
+                    // Handle discovery sync messages
+                    match &msg {
+                        BullyMessage::SyncDiscovery { from_id, registry } => {
+                            println!("Node {}: Received discovery sync from Node {}", self.id, from_id);
+                            let mut local_registry = self.discovery.write().await;
+                            *local_registry = registry.clone();
+                            return;
+                        }
+                        BullyMessage::RequestDiscoverySync { from_id } => {
+                            println!("Node {}: Received discovery sync request from Node {}", self.id, from_id);
+                            drop(reader);
+                            self.broadcast_discovery_state().await;
+                            return;
+                        }
+                        _ => {}
+                    }
+
+                    // Handle other bully messages
                     if let Some(response) = self.bully.handle_message(msg).await {
                         let response_json = serde_json::to_string(&response).unwrap();
                         let _ = stream.write_all(response_json.as_bytes()).await;
@@ -186,6 +212,95 @@ impl ServerNode {
                 // Return encrypted image to client
                 ServerResponse::EncryptedImageData { data: encrypted_data }
             }
+            ClientRequest::Register { username, p2p_address } => {
+                let mut registry = self.discovery.write().await;
+                let success = registry.register_user(username.clone(), p2p_address);
+                println!("Node {}: User '{}' registered", self.id, username);
+
+                // Broadcast state to other servers
+                drop(registry);
+                self.broadcast_discovery_state().await;
+
+                ServerResponse::Registered {
+                    success,
+                    message: "Registration successful".to_string(),
+                }
+            }
+            ClientRequest::Unregister { username } => {
+                let mut registry = self.discovery.write().await;
+                let success = registry.unregister_user(&username);
+                println!("Node {}: User '{}' unregistered", self.id, username);
+
+                drop(registry);
+                self.broadcast_discovery_state().await;
+
+                ServerResponse::Success {
+                    message: "Unregistered successfully".to_string(),
+                }
+            }
+            ClientRequest::GetPeers { username } => {
+                let registry = self.discovery.read().await;
+                let peers = registry.get_online_peers(&username);
+                println!("Node {}: Sent {} peers to '{}'", self.id, peers.len(), username);
+                ServerResponse::PeerList { peers }
+            }
+            ClientRequest::PublishImage { image_info } => {
+                let mut registry = self.discovery.write().await;
+                let image_id = image_info.image_id.clone();
+                registry.publish_image(image_info);
+                println!("Node {}: Published image '{}'", self.id, image_id);
+
+                drop(registry);
+                self.broadcast_discovery_state().await;
+
+                ServerResponse::ImagePublished { image_id }
+            }
+            ClientRequest::UpdatePermissions { image_id, shared_with } => {
+                let mut registry = self.discovery.write().await;
+                let success = registry.update_image_permissions(&image_id, shared_with);
+
+                drop(registry);
+                self.broadcast_discovery_state().await;
+
+                ServerResponse::PermissionsUpdated { success }
+            }
+            ClientRequest::Heartbeat { username } => {
+                let mut registry = self.discovery.write().await;
+                registry.update_heartbeat(&username);
+                ServerResponse::HeartbeatAck
+            }
+            ClientRequest::GetUserImages { owner } => {
+                let registry = self.discovery.read().await;
+                let images = registry.get_user_images(&owner);
+                ServerResponse::ImageList { images }
+            }
+        }
+    }
+
+    async fn broadcast_discovery_state(&self) {
+        let registry = self.discovery.read().await;
+        let registry_clone = registry.clone();
+        drop(registry);
+
+        let message = BullyMessage::SyncDiscovery {
+            from_id: self.id,
+            registry: registry_clone,
+        };
+
+        let peers = self.bully.get_all_peers().await;
+        for (peer_id, peer_addr) in peers {
+            if peer_id == self.id {
+                continue;
+            }
+
+            let msg_clone = message.clone();
+            tokio::spawn(async move {
+                if let Ok(mut stream) = TcpStream::connect(&peer_addr).await {
+                    let json = serde_json::to_string(&msg_clone).unwrap();
+                    let _ = stream.write_all(json.as_bytes()).await;
+                    let _ = stream.write_all(b"\n").await;
+                }
+            });
         }
     }
 

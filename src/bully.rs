@@ -5,6 +5,7 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
 use tokio::sync::RwLock;
 use tokio::time::{sleep, timeout, Duration};
+use crate::discovery::UserRegistry;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum BullyMessage {
@@ -13,6 +14,8 @@ pub enum BullyMessage {
     Coordinator { leader_id: u32 },
     Heartbeat { from_id: u32 },
     HeartbeatAck { from_id: u32 },
+    SyncDiscovery { from_id: u32, registry: UserRegistry },
+    RequestDiscoverySync { from_id: u32 },
 }
 
 #[derive(Debug, Clone)]
