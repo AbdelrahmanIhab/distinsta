@@ -112,9 +112,10 @@ impl Client {
     async fn share_image(&self, image_path: &str, image_id: String, username: String, views: u32) -> Result<(), Box<dyn std::error::Error>> {
         println!("Sharing image '{}' with {} ({} views)", image_id, username, views);
 
-        // Load image
-        let img_bytes = fs::read(image_path)?;
-        let img = image::load_from_memory(&img_bytes)?.to_rgba8();
+        // Load image directly from file path (better format detection)
+        let img = image::open(image_path)
+            .map_err(|e| format!("Failed to load image '{}': {}", image_path, e))?
+            .to_rgba8();
 
         // Create or update metadata
         let mut metadata = match extract_metadata(&img) {
@@ -130,7 +131,7 @@ impl Client {
         // Save to owned directory
         let owned_dir = format!("images/owned_{}", self.username);
         fs::create_dir_all(&owned_dir)?;
-        let save_path = format!("{}/{}", owned_dir, image_id);
+        let save_path = format!("{}/{}.png", owned_dir, image_id);
         embedded_img.save(&save_path)?;
 
         // Store reference
@@ -165,7 +166,7 @@ impl Client {
                 // Save to received directory
                 let received_dir = format!("images/received_{}", self.username);
                 fs::create_dir_all(&received_dir)?;
-                let save_path = format!("{}/{}_{}", received_dir, owner, recv_id);
+                let save_path = format!("{}/{}_{}.png", received_dir, owner, recv_id);
                 fs::write(&save_path, data)?;
 
                 let mut received = self.received_images.write().await;
