@@ -96,7 +96,7 @@ impl Client {
         }
     }
 
-    async fn publish_image(&self, image_id: String, filename: String, shared_with: Vec<String>) -> Result<(), Box<dyn std::error::Error>> {
+    pub async fn publish_image(&self, image_id: String, filename: String, shared_with: Vec<String>) -> Result<(), Box<dyn std::error::Error>> {
         let image_info = ImageInfo {
             image_id,
             filename,

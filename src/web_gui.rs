@@ -45,10 +45,25 @@ async fn share_image_handler(
     State(client): State<Arc<Client>>,
     Json(req): Json<ShareRequest>,
 ) -> Json<ApiResponse> {
-    match client
-        .share_image(&req.image_path, req.image_id, req.target_user, req.views)
-        .await
-    {
+    let image_path = req.image_path;
+    let image_id = req.image_id;
+    let target_user = req.target_user;
+    let views = req.views;
+
+    let share_result = client.share_image(&image_path, image_id.clone(), target_user.clone(), views).await;
+
+    if share_result.is_ok() {
+        // Spawn publish in background
+        let client_clone = client.clone();
+        let id_clone = image_id.clone();
+        let path_clone = image_path.clone();
+        let user_clone = target_user.clone();
+        tokio::spawn(async move {
+            let _ = client_clone.publish_image(id_clone, path_clone, vec![user_clone]).await;
+        });
+    }
+
+    match share_result {
         Ok(_) => Json(ApiResponse {
             success: true,
             message: "Image shared successfully".to_string(),
