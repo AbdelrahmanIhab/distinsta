@@ -13,6 +13,9 @@ rand = "0.8"
 aes = "0.8"
 ctr = "0.9"
 sha2 = "0.10"
+axum = "0.7"
+tower-http = { version = "0.5", features = ["fs"] }
+base64 = "0.21"
 
 [[bin]]
 name = "server"

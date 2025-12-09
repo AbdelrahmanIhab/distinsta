@@ -3,6 +3,7 @@ mod discovery;
 mod p2p_protocol;
 mod protocol;
 mod steganography;
+mod web_gui;
 
 use config::Config;
 use discovery::{ImageInfo, UserInfo};
@@ -19,13 +20,13 @@ use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::RwLock;
 use tokio::time::{sleep, Duration};
 
-struct Client {
-    username: String,
+pub struct Client {
+    pub username: String,
     server_addresses: Vec<String>,
     p2p_port: u16,
     p2p_address: String,
-    owned_images: Arc<RwLock<HashMap<String, PathBuf>>>,    // image_id -> path
-    received_images: Arc<RwLock<HashMap<String, PathBuf>>>, // image_id -> path
+    pub owned_images: Arc<RwLock<HashMap<String, PathBuf>>>,    // image_id -> path
+    pub received_images: Arc<RwLock<HashMap<String, PathBuf>>>, // image_id -> path
 }
 
 impl Client {
@@ -84,7 +85,7 @@ impl Client {
         }
     }
 
-    async fn get_peers(&self) -> Result<Vec<UserInfo>, Box<dyn std::error::Error>> {
+    pub async fn get_peers(&self) -> Result<Vec<UserInfo>, Box<dyn std::error::Error>> {
         let request = ClientRequest::GetPeers {
             username: self.username.clone(),
         };
@@ -109,7 +110,7 @@ impl Client {
         Ok(())
     }
 
-    async fn share_image(&self, image_path: &str, image_id: String, username: String, views: u32) -> Result<(), Box<dyn std::error::Error>> {
+    pub async fn share_image(&self, image_path: &str, image_id: String, username: String, views: u32) -> Result<(), Box<dyn std::error::Error>> {
         println!("Sharing image '{}' with {} ({} views)", image_id, username, views);
 
         // Load image directly from file path (better format detection)
@@ -142,7 +143,7 @@ impl Client {
         Ok(())
     }
 
-    async fn request_image_from_peer(&self, owner: &str, image_id: &str, owner_p2p_addr: &str) -> Result<(), Box<dyn std::error::Error>> {
+    pub async fn request_image_from_peer(&self, owner: &str, image_id: &str, owner_p2p_addr: &str) -> Result<(), Box<dyn std::error::Error>> {
         println!("Requesting image '{}' from {}", image_id, owner);
 
         let request = P2PRequest::RequestImage {
@@ -393,6 +394,12 @@ async fn main() {
     let client_clone = Arc::clone(&client);
     tokio::spawn(async move {
         client_clone.start_p2p_server().await;
+    });
+
+    // Start web GUI server
+    let client_clone = Arc::clone(&client);
+    tokio::spawn(async move {
+        web_gui::start_web_server(client_clone).await;
     });
 
     // Wait for P2P server to start

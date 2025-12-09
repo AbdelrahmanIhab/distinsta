@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Distinsta P2P</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: Arial, sans-serif; padding: 20px; background: #f0f0f0; }
+        .container { max-width: 900px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; }
+        h1 { color: #333; margin-bottom: 20px; }
+        .tabs { display: flex; gap: 10px; margin-bottom: 20px; border-bottom: 2px solid #ddd; }
+        .tab { padding: 10px 20px; background: #eee; border: none; cursor: pointer; }
+        .tab.active { background: #007bff; color: white; }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
+        th { background: #f8f9fa; }
+        button { padding: 8px 16px; background: #007bff; color: white; border: none; cursor: pointer; border-radius: 4px; }
+        button:hover { background: #0056b3; }
+        input, select { padding: 8px; margin: 10px 0; width: 100%; max-width: 400px; }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; }
+        .image-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 15px; margin-top: 20px; }
+        .image-card { border: 1px solid #ddd; padding: 10px; border-radius: 4px; }
+        .status { float: right; color: green; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Distinsta P2P Image Sharing <span class="status">● Online</span></h1>
+
+        <!-- Tabs -->
+        <div class="tabs">
+            <button class="tab active" onclick="showTab('peers')">Peers</button>
+            <button class="tab" onclick="showTab('share')">Share Image</button>
+            <button class="tab" onclick="showTab('my-images')">My Images</button>
+            <button class="tab" onclick="showTab('received')">Received Images</button>
+        </div>
+
+        <!-- Peers Tab -->
+        <div id="peers-tab" class="tab-content active">
+            <h2>Online Peers</h2>
+            <table>
+                <thead><tr><th>Username</th><th>P2P Address</th></tr></thead>
+                <tbody id="peers-table"></tbody>
+            </table>
+        </div>
+
+        <!-- Share Tab -->
+        <div id="share-tab" class="tab-content">
+            <h2>Share Image</h2>
+            <div class="form-group">
+                <label>Image Path:</label>
+                <input type="text" id="image-path" placeholder="test_images/test1.png">
+            </div>
+            <div class="form-group">
+                <label>Image ID:</label>
+                <input type="text" id="image-id" placeholder="img001">
+            </div>
+            <div class="form-group">
+                <label>Share With:</label>
+                <select id="peer-select"></select>
+            </div>
+            <div class="form-group">
+                <label>View Quota:</label>
+                <input type="number" id="view-quota" value="5" min="1">
+            </div>
+            <button onclick="shareImage()">Share Image</button>
+        </div>
+
+        <!-- My Images Tab -->
+        <div id="my-images-tab" class="tab-content">
+            <h2>My Images</h2>
+            <div id="my-images-list" class="image-list"></div>
+        </div>
+
+        <!-- Received Tab -->
+        <div id="received-tab" class="tab-content">
+            <h2>Received Images</h2>
+            <div id="received-list" class="image-list"></div>
+        </div>
+    </div>
+
+    <script>
+        // Tab switching
+        function showTab(tabName) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            event.target.classList.add('active');
+            document.getElementById(tabName + '-tab').classList.add('active');
+
+            // Load data for tab
+            if (tabName === 'peers') loadPeers();
+            if (tabName === 'my-images') loadMyImages();
+            if (tabName === 'received') loadReceivedImages();
+        }
+
+        // Load peers
+        async function loadPeers() {
+            const res = await fetch('/api/peers');
+            const peers = await res.json();
+            const tbody = document.getElementById('peers-table');
+            tbody.innerHTML = peers.map(p => `
+                <tr><td>${p.username}</td><td>${p.p2p_address}</td></tr>
+            `).join('');
+
+            // Update peer select
+            const select = document.getElementById('peer-select');
+            select.innerHTML = peers.map(p => `<option value="${p.username}">${p.username}</option>`).join('');
+        }
+
+        // Share image
+        async function shareImage() {
+            const data = {
+                image_path: document.getElementById('image-path').value,
+                image_id: document.getElementById('image-id').value,
+                target_user: document.getElementById('peer-select').value,
+                views: parseInt(document.getElementById('view-quota').value)
+            };
+
+            const res = await fetch('/api/share', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+
+            const result = await res.json();
+            alert(result.message);
+            if (result.success) loadMyImages();
+        }
+
+        // Load my images
+        async function loadMyImages() {
+            const res = await fetch('/api/my_images');
+            const images = await res.json();
+            const div = document.getElementById('my-images-list');
+            div.innerHTML = images.map(img => `
+                <div class="image-card">
+                    <strong>${img}</strong>
+                </div>
+            `).join('') || '<p>No images</p>';
+        }
+
+        // Load received images
+        async function loadReceivedImages() {
+            const res = await fetch('/api/received');
+            const images = await res.json();
+            const div = document.getElementById('received-list');
+            div.innerHTML = images.map(img => `
+                <div class="image-card">
+                    <strong>${img}</strong>
+                </div>
+            `).join('') || '<p>No images received</p>';
+        }
+
+        // Auto-refresh peers every 5s
+        setInterval(loadPeers, 5000);
+        loadPeers();
+    </script>
+</body>
+</html>
