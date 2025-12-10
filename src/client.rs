@@ -1,5 +1,6 @@
 mod config;
 mod discovery;
+mod network_utils;
 mod p2p_protocol;
 mod protocol;
 mod steganography;
@@ -7,6 +8,7 @@ mod web_gui;
 
 use config::Config;
 use discovery::{ImageInfo, UserInfo};
+use network_utils::{detect_local_ip, format_p2p_address};
 use p2p_protocol::{P2PRequest, P2PResponse};
 use protocol::{ClientRequest, ServerResponse};
 use steganography::{create_access_denied_image, embed_metadata, extract_metadata, ImageMetadata};
@@ -76,6 +78,8 @@ impl Client {
             ServerResponse::Registered { success, message } => {
                 if success {
                     println!("✓ Registered successfully");
+                    println!("  P2P Address: {}", self.p2p_address);
+                    println!("  Other peers can reach you at this address");
                 } else {
                     println!("✗ Registration failed: {}", message);
                 }
@@ -364,12 +368,11 @@ async fn main() {
         eprintln!("Usage: {} <username> <p2p_port> [ip_address]", args[0]);
         eprintln!();
         eprintln!("Examples:");
-        eprintln!("  Local testing:    cargo run --bin client alice 9001");
-        eprintln!("  Distributed:      cargo run --bin client alice 9001 192.168.1.100");
+        eprintln!("  Auto-detect IP:   cargo run --bin client alice 9001");
+        eprintln!("  Manual IP:        cargo run --bin client alice 9001 192.168.1.100");
         eprintln!();
-        eprintln!("To find your IP:");
-        eprintln!("  Linux/Mac:  hostname -I");
-        eprintln!("  Windows:    ipconfig");
+        eprintln!("Note: IP address is optional. If not provided, it will be auto-detected");
+        eprintln!("      by connecting to the discovery servers in config.toml");
         std::process::exit(1);
     }
 
@@ -379,14 +382,32 @@ async fn main() {
     let config = Config::load("config.toml").expect("Failed to load config");
     let server_addresses: Vec<String> = config.servers.values().cloned().collect();
 
-    // Determine P2P address for registration
-    // User can provide IP as 3rd argument, otherwise use 0.0.0.0 (localhost only)
-    let p2p_ip = if args.len() > 3 {
-        args[3].clone()  // User provides their IP: cargo run --bin client alice 9001 192.168.1.100
+    // Determine P2P address: auto-detect or use manual override
+    let p2p_register_address = if args.len() > 3 {
+        // Manual override: user provided IP address
+        let p2p_ip = args[3].clone();
+        println!("Using manually specified IP: {}", p2p_ip);
+        format!("{}:{}", p2p_ip, p2p_port)
     } else {
-        "127.0.0.1".to_string()  // Default to localhost for local testing
+        // Auto-detect: find our network IP by connecting to discovery servers
+        println!("Auto-detecting network IP address...");
+
+        match detect_local_ip(&server_addresses).await {
+            Ok(detected_ip) => {
+                let address = format_p2p_address(detected_ip, p2p_port);
+                println!("✓ Detected P2P address: {}", address);
+                address
+            }
+            Err(e) => {
+                eprintln!("⚠ Auto-detection failed: {}", e);
+                eprintln!("Falling back to localhost (127.0.0.1)");
+                eprintln!("Note: P2P connections will only work locally.");
+                eprintln!("For distributed deployment, provide IP manually:");
+                eprintln!("  cargo run --bin client {} {} <your_ip>", username, p2p_port);
+                format!("127.0.0.1:{}", p2p_port)
+            }
+        }
     };
-    let p2p_register_address = format!("{}:{}", p2p_ip, p2p_port);
 
     let client = Arc::new(Client::new(username.clone(), server_addresses, p2p_port, p2p_register_address));
 
