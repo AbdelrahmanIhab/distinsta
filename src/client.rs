@@ -639,9 +639,110 @@ impl Client {
         Ok(())
     }
 
+    /// Check if a peer is currently online
+    async fn is_peer_online(&self, username: &str) -> bool {
+        match self.get_peers().await {
+            Ok(peers) => peers.iter().any(|p| p.username == username),
+            Err(_) => false,
+        }
+    }
+
+    /// Request permissions sync from all image owners
+    pub async fn sync_permissions_from_owners(&self) -> Result<(), Box<dyn std::error::Error>> {
+        use crate::p2p_protocol::{P2PRequest, P2PResponse, PermissionUpdate};
+
+        // Get list of all owners of images we have
+        let received = self.received_images.read().await;
+        let mut owners_to_sync = std::collections::HashSet::new();
+
+        for (image_id, path) in received.iter() {
+            if let Ok(img_bytes) = fs::read(path) {
+                if let Ok(img) = image::load_from_memory(&img_bytes) {
+                    let rgba = img.to_rgba8();
+                    if let Ok(metadata) = extract_metadata(&rgba) {
+                        owners_to_sync.insert((metadata.owner.clone(), image_id.clone()));
+                    }
+                }
+            }
+        }
+        drop(received);
+
+        // Get online peers
+        let peers = self.get_peers().await?;
+
+        // Request sync from each owner
+        for (owner, _) in owners_to_sync.iter() {
+            if let Some(owner_peer) = peers.iter().find(|p| p.username == *owner) {
+                let request = P2PRequest::RequestPermissionsSync {
+                    requester: self.username.clone(),
+                };
+
+                if let Ok(mut stream) = TcpStream::connect(&owner_peer.p2p_address).await {
+                    let request_json = serde_json::to_string(&request)?;
+                    stream.write_all(request_json.as_bytes()).await?;
+                    stream.write_all(b"\n").await?;
+
+                    let mut reader = BufReader::new(&mut stream);
+                    let mut response_line = String::new();
+                    reader.read_line(&mut response_line).await?;
+
+                    if let Ok(P2PResponse::PermissionsSync { updates }) = serde_json::from_str(&response_line) {
+                        self.apply_permission_updates(updates).await;
+                    }
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Apply permission updates received from sync
+    async fn apply_permission_updates(&self, updates: Vec<crate::p2p_protocol::PermissionUpdate>) {
+        let mut received = self.received_images.write().await;
+
+        for update in updates {
+            if let Some(path) = received.get(&update.image_id) {
+                let path_clone = path.clone();
+
+                match update.new_view_count {
+                    Some(new_count) => {
+                        // Update view count
+                        if let Ok(img_bytes) = fs::read(&path_clone) {
+                            if let Ok(img) = image::load_from_memory(&img_bytes) {
+                                let rgba = img.to_rgba8();
+                                if let Ok(mut metadata) = extract_metadata(&rgba) {
+                                    metadata.permissions.insert(self.username.clone(), new_count);
+
+                                    if let Ok(updated_img) = embed_metadata(&rgba, &metadata) {
+                                        let _ = updated_img.save(&path_clone);
+                                        println!("✓ Synced permissions for image '{}': {} views", update.image_id, new_count);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    None => {
+                        // Access revoked - remove image
+                        received.remove(&update.image_id);
+                        let _ = fs::remove_file(&path_clone);
+                        println!("✓ Synced: Access revoked for image '{}'", update.image_id);
+                    }
+                }
+            }
+        }
+    }
+
     /// View an image and decrement the view count
     /// Returns (path, is_access_denied)
     pub async fn view_image_with_tracking(&self, image_id: &str) -> Result<(String, bool), Box<dyn std::error::Error>> {
+        // Check if viewer (current user) is online by attempting to get peers
+        match self.get_peers().await {
+            Ok(_) => {}, // User is online, continue
+            Err(_) => {
+                return Err("Cannot view image: You are offline. Please connect to the network to view images.".into());
+            }
+        }
+
         // Check received images
         let received = self.received_images.read().await;
         if let Some(path) = received.get(image_id) {
@@ -1062,6 +1163,35 @@ impl Client {
                     message: "Access revoked".to_string(),
                 }
             }
+            P2PRequest::RequestPermissionsSync { requester } => {
+                // Sync all permissions for images where requester has access
+                use crate::p2p_protocol::PermissionUpdate;
+
+                let owned = self.owned_images.read().await;
+                let mut updates = Vec::new();
+
+                for (image_id, path) in owned.iter() {
+                    if let Ok(img_bytes) = fs::read(path) {
+                        if let Ok(img) = image::load_from_memory(&img_bytes) {
+                            let rgba = img.to_rgba8();
+                            if let Ok(metadata) = extract_metadata(&rgba) {
+                                // Check if requester has access
+                                if let Some(&view_count) = metadata.permissions.get(&requester) {
+                                    updates.push(PermissionUpdate {
+                                        image_id: image_id.clone(),
+                                        new_view_count: Some(view_count),
+                                    });
+                                }
+                            }
+                        }
+                    }
+                }
+
+                drop(owned);
+
+                println!("✓ Sending {} permission updates to {}", updates.len(), requester);
+                P2PResponse::PermissionsSync { updates }
+            }
         };
 
         let response_json = serde_json::to_string(&response)?;
@@ -1078,6 +1208,11 @@ impl Client {
                 username: self.username.clone(),
             };
             let _ = self.send_request(request).await;
+
+            // Sync permissions from all owners every heartbeat
+            if let Err(e) = self.sync_permissions_from_owners().await {
+                eprintln!("Failed to sync permissions: {}", e);
+            }
         }
     }
 }

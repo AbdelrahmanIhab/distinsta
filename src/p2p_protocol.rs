@@ -49,6 +49,10 @@ pub enum P2PRequest {
         viewer: String,
         image_id: String,
     },
+    /// Request sync of all permissions for images owned by a peer
+    RequestPermissionsSync {
+        requester: String,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -91,4 +95,14 @@ pub enum P2PResponse {
     AccessRevoked {
         message: String,
     },
+    /// Permissions sync data
+    PermissionsSync {
+        updates: Vec<PermissionUpdate>,
+    },
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PermissionUpdate {
+    pub image_id: String,
+    pub new_view_count: Option<u32>, // None means revoked
 }
