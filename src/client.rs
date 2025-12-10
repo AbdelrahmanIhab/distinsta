@@ -464,8 +464,11 @@ impl Client {
                 // Notify the viewer of the updated permissions
                 let viewer = viewer_username.to_string();
                 let img_id = image_id.to_string();
+                let server_addresses = self.server_addresses.clone();
                 tokio::spawn(async move {
-                    let _ = Self::notify_viewer_of_update(&viewer, &img_id, new_view_count).await;
+                    if let Err(e) = Self::notify_viewer_update_static(&viewer, &img_id, new_view_count, server_addresses).await {
+                        eprintln!("Failed to notify viewer: {}", e);
+                    }
                 });
 
                 Ok(())
@@ -478,15 +481,11 @@ impl Client {
     }
 
     /// Notify owner that a view was consumed
-    async fn notify_owner_of_view_consumed(owner: &str, viewer: &str, image_id: &str, remaining_views: u32) -> Result<(), Box<dyn std::error::Error>> {
+    async fn notify_owner_static(owner: &str, viewer: &str, image_id: &str, remaining_views: u32, server_addresses: Vec<String>) -> Result<(), Box<dyn std::error::Error>> {
         // Get owner's P2P address from discovery service
         let request = ClientRequest::GetPeers {
             username: viewer.to_string(),
         };
-
-        // Simple connection to discovery service to get peers
-        // We'll use a temporary connection since this is a static method
-        let server_addresses = vec!["127.0.0.1:8000".to_string()];
 
         for address in &server_addresses {
             if let Ok(mut stream) = TcpStream::connect(address).await {
@@ -522,13 +521,11 @@ impl Client {
     }
 
     /// Notify viewer of permission update
-    async fn notify_viewer_of_update(viewer: &str, image_id: &str, new_view_count: u32) -> Result<(), Box<dyn std::error::Error>> {
+    async fn notify_viewer_update_static(viewer: &str, image_id: &str, new_view_count: u32, server_addresses: Vec<String>) -> Result<(), Box<dyn std::error::Error>> {
         // Get viewer's P2P address from discovery service
         let request = ClientRequest::GetPeers {
             username: "temp".to_string(),
         };
-
-        let server_addresses = vec!["127.0.0.1:8000".to_string()];
 
         for address in &server_addresses {
             if let Ok(mut stream) = TcpStream::connect(address).await {
@@ -587,8 +584,11 @@ impl Client {
                 // Notify the viewer that access was revoked
                 let viewer = viewer_username.to_string();
                 let img_id = image_id.to_string();
+                let server_addresses = self.server_addresses.clone();
                 tokio::spawn(async move {
-                    let _ = Self::notify_viewer_of_revoke(&viewer, &img_id).await;
+                    if let Err(e) = Self::notify_viewer_revoke_static(&viewer, &img_id, server_addresses).await {
+                        eprintln!("Failed to notify viewer of revoke: {}", e);
+                    }
                 });
 
                 Ok(())
@@ -601,13 +601,11 @@ impl Client {
     }
 
     /// Notify viewer that access was revoked
-    async fn notify_viewer_of_revoke(viewer: &str, image_id: &str) -> Result<(), Box<dyn std::error::Error>> {
+    async fn notify_viewer_revoke_static(viewer: &str, image_id: &str, server_addresses: Vec<String>) -> Result<(), Box<dyn std::error::Error>> {
         // Get viewer's P2P address from discovery service
         let request = ClientRequest::GetPeers {
             username: "temp".to_string(),
         };
-
-        let server_addresses = vec!["127.0.0.1:8000".to_string()];
 
         for address in &server_addresses {
             if let Ok(mut stream) = TcpStream::connect(address).await {
@@ -666,12 +664,15 @@ impl Client {
                     println!("✓ Viewing image: {}", image_id);
                     println!("  Remaining views: {}", remaining);
 
-                    // Notify owner of view consumption
+                    // Notify owner of view consumption (async in background)
                     let owner = metadata.owner.clone();
                     let image_id_clone = image_id.to_string();
-                    let self_clone = self.username.clone();
+                    let viewer = self.username.clone();
+                    let server_addresses = self.server_addresses.clone();
                     tokio::spawn(async move {
-                        let _ = Self::notify_owner_of_view_consumed(&owner, &self_clone, &image_id_clone, remaining).await;
+                        if let Err(e) = Self::notify_owner_static(&owner, &viewer, &image_id_clone, remaining, server_addresses).await {
+                            eprintln!("Failed to notify owner: {}", e);
+                        }
                     });
 
                     return Ok((path_clone.display().to_string(), false));
