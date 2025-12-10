@@ -263,6 +263,8 @@ impl Client {
             requester: requester.clone(),
             image_id: image_id.clone(),
             granted_views,
+            owner: self.username.clone(),
+            owner_p2p_address: self.p2p_address.clone(),
         };
 
         let mut stream = TcpStream::connect(&requester_p2p_addr).await?;
@@ -597,9 +599,19 @@ impl Client {
                 requester: _,
                 image_id,
                 granted_views,
+                owner,
+                owner_p2p_address,
             } => {
                 // This approval is being received by the requester
                 println!("✓ Access approved for image '{}' ({} views)", image_id, granted_views);
+                println!("🔄 Auto-downloading approved image '{}'...", image_id);
+
+                // Automatically download the image now that we have permission
+                // Note: This download happens inline to ensure it completes
+                match self.request_image_from_peer(&owner, &image_id, &owner_p2p_address).await {
+                    Ok(_) => println!("✓ Image '{}' downloaded successfully and ready to view", image_id),
+                    Err(e) => eprintln!("✗ Failed to download image '{}': {}", image_id, e),
+                }
 
                 P2PResponse::ApprovalSent {
                     message: format!(

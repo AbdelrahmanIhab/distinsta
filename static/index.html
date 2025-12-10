@@ -5,93 +5,133 @@
     <title>Distinsta P2P</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: Arial, sans-serif; padding: 20px; background: #f0f0f0; }
-        .container { max-width: 900px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; }
+        body { font-family: Arial, sans-serif; background: #f0f0f0; display: flex; height: 100vh; }
+
+        /* Sidebar */
+        .sidebar { width: 250px; background: #2c3e50; color: white; padding: 20px; overflow-y: auto; }
+        .sidebar h2 { font-size: 18px; margin-bottom: 15px; color: #ecf0f1; }
+        .peer-list { list-style: none; }
+        .peer-item { padding: 10px; margin-bottom: 8px; background: #34495e; border-radius: 4px; font-size: 14px; }
+        .peer-item .username { font-weight: bold; display: block; }
+        .peer-item .address { font-size: 12px; color: #95a5a6; margin-top: 4px; }
+        .online-indicator { display: inline-block; width: 8px; height: 8px; background: #2ecc71; border-radius: 50%; margin-right: 6px; }
+
+        /* Main content */
+        .main-content { flex: 1; padding: 20px; overflow-y: auto; }
+        .container { max-width: 1200px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
         h1 { color: #333; margin-bottom: 20px; }
+
         .tabs { display: flex; gap: 10px; margin-bottom: 20px; border-bottom: 2px solid #ddd; flex-wrap: wrap; }
-        .tab { padding: 10px 20px; background: #eee; border: none; cursor: pointer; }
+        .tab { padding: 10px 20px; background: #eee; border: none; cursor: pointer; border-radius: 4px 4px 0 0; }
         .tab.active { background: #007bff; color: white; }
         .tab-content { display: none; }
         .tab-content.active { display: block; }
+
         table { width: 100%; border-collapse: collapse; margin-top: 10px; }
         th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
         th { background: #f8f9fa; }
+
         button { padding: 8px 16px; background: #007bff; color: white; border: none; cursor: pointer; border-radius: 4px; margin-right: 5px; }
         button:hover { background: #0056b3; }
         button.reject { background: #dc3545; }
         button.reject:hover { background: #c82333; }
         button.success { background: #28a745; }
         button.success:hover { background: #218838; }
+
         input, select { padding: 8px; margin: 10px 0; width: 100%; max-width: 400px; }
         .form-group { margin-bottom: 15px; }
         label { display: block; margin-bottom: 5px; font-weight: bold; }
+
         .image-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 15px; margin-top: 20px; }
         .image-card { border: 1px solid #ddd; padding: 15px; border-radius: 4px; background: #f9f9f9; }
         .image-card strong { display: block; margin-bottom: 8px; color: #333; }
         .image-card .owner { color: #666; font-size: 0.9em; margin-bottom: 8px; }
         .image-card .views { color: #28a745; font-weight: bold; margin-bottom: 10px; }
-        .status { float: right; color: green; }
+
         .request-card { border: 1px solid #ddd; padding: 15px; margin: 10px 0; border-radius: 4px; background: #f9f9f9; }
         .request-info { margin-bottom: 10px; }
+
+        /* Image modal */
+        .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.9); }
+        .modal-content { margin: auto; display: block; max-width: 90%; max-height: 90%; margin-top: 2%; }
+        .close { position: absolute; top: 15px; right: 35px; color: #f1f1f1; font-size: 40px; font-weight: bold; cursor: pointer; }
+        .close:hover { color: #bbb; }
+        .modal-caption { text-align: center; color: #ccc; padding: 10px 0; font-size: 18px; }
     </style>
 </head>
 <body>
-    <div class="container">
-        <h1>Distinsta P2P Image Sharing <span class="status">● Online</span></h1>
+    <!-- Sidebar -->
+    <div class="sidebar">
+        <h2>🟢 Active Peers</h2>
+        <ul class="peer-list" id="sidebar-peers"></ul>
+    </div>
 
-        <!-- Tabs -->
-        <div class="tabs">
-            <button class="tab active" onclick="showTab('upload')">Upload</button>
-            <button class="tab" onclick="showTab('browse')">Browse Images</button>
-            <button class="tab" onclick="showTab('viewable')">Viewable Images</button>
-            <button class="tab" onclick="showTab('requests')">Requests</button>
-            <button class="tab" onclick="showTab('my-images')">My Images</button>
-        </div>
+    <!-- Main Content -->
+    <div class="main-content">
+        <div class="container">
+            <h1>Distinsta P2P Image Sharing</h1>
 
-        <!-- Upload Tab -->
-        <div id="upload-tab" class="tab-content active">
-            <h2>Upload Image</h2>
-            <p>Upload an image to share with the network. Other users can request access to view it.</p>
-            <div class="form-group">
-                <label>Image Path:</label>
-                <input type="text" id="upload-path" placeholder="test_images/test1.png">
+            <!-- Tabs -->
+            <div class="tabs">
+                <button class="tab active" onclick="showTab('upload')">Upload</button>
+                <button class="tab" onclick="showTab('browse')">Browse Images</button>
+                <button class="tab" onclick="showTab('viewable')">Viewable Images</button>
+                <button class="tab" onclick="showTab('requests')">Requests</button>
+                <button class="tab" onclick="showTab('my-images')">My Images</button>
             </div>
-            <div class="form-group">
-                <label>Image ID:</label>
-                <input type="text" id="upload-id" placeholder="img001">
+
+            <!-- Upload Tab -->
+            <div id="upload-tab" class="tab-content active">
+                <h2>Upload Image</h2>
+                <p>Upload an image to share with the network. Other users can request access to view it.</p>
+                <div class="form-group">
+                    <label>Image Path:</label>
+                    <input type="text" id="upload-path" placeholder="test_images/test1.png">
+                </div>
+                <div class="form-group">
+                    <label>Image ID:</label>
+                    <input type="text" id="upload-id" placeholder="img001">
+                </div>
+                <button onclick="uploadImage()">Upload Image</button>
             </div>
-            <button onclick="uploadImage()">Upload Image</button>
-        </div>
 
-        <!-- Browse Tab -->
-        <div id="browse-tab" class="tab-content">
-            <h2>Browse All Images</h2>
-            <p>Browse all images uploaded by users on the network and request access to view them.</p>
-            <table>
-                <thead><tr><th>Owner</th><th>Image ID</th><th>Actions</th></tr></thead>
-                <tbody id="browse-table"></tbody>
-            </table>
-        </div>
+            <!-- Browse Tab -->
+            <div id="browse-tab" class="tab-content">
+                <h2>Browse All Images</h2>
+                <p>Browse all images uploaded by users on the network and request access to view them.</p>
+                <table>
+                    <thead><tr><th>Owner</th><th>Image ID</th><th>Actions</th></tr></thead>
+                    <tbody id="browse-table"></tbody>
+                </table>
+            </div>
 
-        <!-- Viewable Images Tab -->
-        <div id="viewable-tab" class="tab-content">
-            <h2>Viewable Images</h2>
-            <p>Images you have permission to view. Click "View" to display the image and decrement the view count.</p>
-            <div id="viewable-list" class="image-list"></div>
-        </div>
+            <!-- Viewable Images Tab -->
+            <div id="viewable-tab" class="tab-content">
+                <h2>Viewable Images</h2>
+                <p>Images you have permission to view. Click "View" to display the image and decrement the view count.</p>
+                <div id="viewable-list" class="image-list"></div>
+            </div>
 
-        <!-- Requests Tab -->
-        <div id="requests-tab" class="tab-content">
-            <h2>Pending Access Requests</h2>
-            <p>Approve or reject requests from other users to view your images.</p>
-            <div id="requests-list"></div>
-        </div>
+            <!-- Requests Tab -->
+            <div id="requests-tab" class="tab-content">
+                <h2>Pending Access Requests</h2>
+                <p>Approve or reject requests from other users to view your images.</p>
+                <div id="requests-list"></div>
+            </div>
 
-        <!-- My Images Tab -->
-        <div id="my-images-tab" class="tab-content">
-            <h2>My Images</h2>
-            <div id="my-images-list" class="image-list"></div>
+            <!-- My Images Tab -->
+            <div id="my-images-tab" class="tab-content">
+                <h2>My Images</h2>
+                <div id="my-images-list" class="image-list"></div>
+            </div>
         </div>
+    </div>
+
+    <!-- Image Modal -->
+    <div id="imageModal" class="modal">
+        <span class="close" onclick="closeModal()">&times;</span>
+        <img class="modal-content" id="modalImage">
+        <div class="modal-caption" id="modalCaption"></div>
     </div>
 
     <script>
@@ -107,6 +147,21 @@
             if (tabName === 'viewable') loadViewableImages();
             if (tabName === 'requests') loadRequests();
             if (tabName === 'my-images') loadMyImages();
+        }
+
+        // Load sidebar peers
+        async function loadSidebarPeers() {
+            const res = await fetch('/api/peers');
+            const peers = await res.json();
+
+            const list = document.getElementById('sidebar-peers');
+            list.innerHTML = peers.map(p => `
+                <li class="peer-item">
+                    <span class="online-indicator"></span>
+                    <span class="username">${p.username}</span>
+                    <div class="address">${p.p2p_address}</div>
+                </li>
+            `).join('') || '<li class="peer-item">No peers online</li>';
         }
 
         // Upload image
@@ -131,7 +186,7 @@
             }
         }
 
-        // Load browse images (all images from all users)
+        // Load browse images
         async function loadBrowseImages() {
             const res = await fetch('/api/all_images');
             const images = await res.json();
@@ -158,7 +213,6 @@
 
         // Show request dialog
         async function showRequestDialog(owner, imageId) {
-            // Get owner's P2P address from peers list
             const peersRes = await fetch('/api/peers');
             const peers = await peersRes.json();
             const ownerPeer = peers.find(p => p.username === owner);
@@ -174,7 +228,7 @@
             requestAccess(ownerPeer.p2p_address, imageId, parseInt(views));
         }
 
-        // Request access to an image
+        // Request access
         async function requestAccess(ownerP2pAddress, imageId, requestedViews) {
             const data = {
                 owner_p2p_address: ownerP2pAddress,
@@ -228,13 +282,26 @@
 
             const result = await res.json();
 
-            if (result.success) {
-                alert(result.message);
+            if (result.success && result.data && result.data.image_data) {
+                // Display the image in a modal
+                const modal = document.getElementById('imageModal');
+                const modalImg = document.getElementById('modalImage');
+                const caption = document.getElementById('modalCaption');
+
+                modal.style.display = 'block';
+                modalImg.src = 'data:image/png;base64,' + result.data.image_data;
+                caption.innerHTML = `Image: ${imageId}<br>Remaining views updated`;
+
                 // Reload viewable images to update view counts
-                loadViewableImages();
+                setTimeout(() => loadViewableImages(), 1000);
             } else {
                 alert('Error: ' + result.message);
             }
+        }
+
+        // Close modal
+        function closeModal() {
+            document.getElementById('imageModal').style.display = 'none';
         }
 
         // Load pending requests
@@ -321,12 +388,16 @@
             `).join('') || '<p>No images</p>';
         }
 
-        // Auto-refresh requests every 5s when on requests tab
+        // Auto-refresh
         setInterval(() => {
+            loadSidebarPeers();
             const activeTab = document.querySelector('.tab.active');
             if (activeTab && activeTab.textContent === 'Requests') loadRequests();
             if (activeTab && activeTab.textContent === 'Viewable Images') loadViewableImages();
-        }, 5000);
+        }, 3000);
+
+        // Initial load
+        loadSidebarPeers();
     </script>
 </body>
 </html>

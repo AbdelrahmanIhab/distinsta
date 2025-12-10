@@ -24,6 +24,8 @@ pub enum P2PRequest {
         requester: String,
         image_id: String,
         granted_views: u32,
+        owner: String,
+        owner_p2p_address: String,
     },
 }
 

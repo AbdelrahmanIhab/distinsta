@@ -2,10 +2,14 @@ use axum::{
     extract::State,
     routing::{get, post},
     Json, Router,
+    response::IntoResponse,
+    http::{header, StatusCode},
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
+use std::fs;
 use tower_http::services::ServeDir;
+use base64::Engine;
 
 use super::{Client, ViewRequest, ViewableImageInfo};
 use super::discovery::{UserInfo, ImageInfo};
@@ -249,11 +253,27 @@ async fn view_image_handler(
     Json(req): Json<ViewImageRequest>,
 ) -> Json<ApiResponse> {
     match client.view_image_with_tracking(&req.image_id).await {
-        Ok(path) => Json(ApiResponse {
-            success: true,
-            message: format!("Image viewed successfully. Path: {}", path),
-            data: Some(serde_json::json!({"path": path})),
-        }),
+        Ok(path) => {
+            // Read the image file and encode as base64
+            match fs::read(&path) {
+                Ok(image_bytes) => {
+                    let base64_image = base64::engine::general_purpose::STANDARD.encode(&image_bytes);
+                    Json(ApiResponse {
+                        success: true,
+                        message: format!("Image viewed successfully"),
+                        data: Some(serde_json::json!({
+                            "path": path,
+                            "image_data": base64_image
+                        })),
+                    })
+                }
+                Err(e) => Json(ApiResponse {
+                    success: false,
+                    message: format!("Failed to read image: {}", e),
+                    data: None,
+                }),
+            }
+        }
         Err(e) => Json(ApiResponse {
             success: false,
             message: e.to_string(),
