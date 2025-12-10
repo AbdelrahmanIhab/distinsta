@@ -132,6 +132,53 @@ impl Client {
         }
     }
 
+    pub async fn get_other_users_images(&self) -> Result<Vec<ImageInfo>, Box<dyn std::error::Error>> {
+        let request = ClientRequest::GetAllImages {
+            requester: self.username.clone(),
+        };
+
+        match self.send_request(request).await? {
+            ServerResponse::ImageList { images } => {
+                // Filter out images owned by the current user
+                let filtered: Vec<ImageInfo> = images
+                    .into_iter()
+                    .filter(|img| img.owner != self.username)
+                    .collect();
+                Ok(filtered)
+            }
+            _ => Err("Unexpected response".into()),
+        }
+    }
+
+    /// Request a thumbnail from a peer
+    pub async fn request_thumbnail(&self, owner_p2p_addr: &str, image_id: String) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
+        let request = P2PRequest::RequestThumbnail {
+            requester: self.username.clone(),
+            image_id: image_id.clone(),
+        };
+
+        let mut stream = TcpStream::connect(owner_p2p_addr).await?;
+        let request_json = serde_json::to_string(&request)?;
+        stream.write_all(request_json.as_bytes()).await?;
+        stream.write_all(b"\n").await?;
+
+        let mut reader = BufReader::new(&mut stream);
+        let mut response_line = String::new();
+        reader.read_line(&mut response_line).await?;
+
+        let response: P2PResponse = serde_json::from_str(&response_line)?;
+
+        match response {
+            P2PResponse::ThumbnailData { image_id: _, data } => {
+                Ok(data)
+            }
+            P2PResponse::Error { message } => {
+                Err(format!("Error: {}", message).into())
+            }
+            _ => Err("Unexpected response".into()),
+        }
+    }
+
     pub async fn publish_image(&self, image_id: String, filename: String, shared_with: Vec<String>) -> Result<(), Box<dyn std::error::Error>> {
         let image_info = ImageInfo {
             image_id,
@@ -342,7 +389,8 @@ impl Client {
     }
 
     /// View an image and decrement the view count
-    pub async fn view_image_with_tracking(&self, image_id: &str) -> Result<String, Box<dyn std::error::Error>> {
+    /// Returns (path, is_access_denied)
+    pub async fn view_image_with_tracking(&self, image_id: &str) -> Result<(String, bool), Box<dyn std::error::Error>> {
         // Check received images
         let received = self.received_images.read().await;
         if let Some(path) = received.get(image_id) {
@@ -365,11 +413,15 @@ impl Client {
                     println!("✓ Viewing image: {}", image_id);
                     println!("  Remaining views: {}", remaining);
 
-                    return Ok(path_clone.display().to_string());
+                    return Ok((path_clone.display().to_string(), false));
                 }
             }
 
-            return Err("Access denied or views exhausted".into());
+            // Views exhausted - create and return access denied image
+            let denied_img = create_access_denied_image();
+            let denied_path = format!("temp_access_denied_{}.png", image_id);
+            denied_img.save(&denied_path)?;
+            return Ok((denied_path, true));
         }
 
         Err("Image not found".into())
@@ -618,6 +670,41 @@ impl Client {
                         "You have been granted {} views for image '{}'",
                         granted_views, image_id
                     ),
+                }
+            }
+            P2PRequest::RequestThumbnail { requester: _, image_id } => {
+                // Return a low-resolution thumbnail
+                let owned = self.owned_images.read().await;
+                if let Some(path) = owned.get(&image_id) {
+                    let path_clone = path.clone();
+                    drop(owned);
+
+                    // Load and resize image to create thumbnail
+                    match image::open(&path_clone) {
+                        Ok(img) => {
+                            // Create 100x100 thumbnail
+                            let thumbnail = img.thumbnail(100, 100);
+                            let mut buffer: Vec<u8> = Vec::new();
+                            let mut cursor = std::io::Cursor::new(&mut buffer);
+
+                            match thumbnail.write_to(&mut cursor, image::ImageFormat::Png) {
+                                Ok(_) => P2PResponse::ThumbnailData {
+                                    image_id,
+                                    data: buffer,
+                                },
+                                Err(_) => P2PResponse::Error {
+                                    message: "Failed to encode thumbnail".to_string(),
+                                },
+                            }
+                        }
+                        Err(_) => P2PResponse::Error {
+                            message: "Failed to load image".to_string(),
+                        },
+                    }
+                } else {
+                    P2PResponse::Error {
+                        message: "Image not found".to_string(),
+                    }
                 }
             }
         };

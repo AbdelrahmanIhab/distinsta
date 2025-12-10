@@ -30,6 +30,8 @@
         table { width: 100%; border-collapse: collapse; margin-top: 10px; }
         th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
         th { background: #f8f9fa; }
+        .thumbnail { width: 100px; height: 100px; object-fit: cover; border-radius: 4px; border: 1px solid #ddd; }
+        .thumbnail-loading { width: 100px; height: 100px; background: #eee; border-radius: 4px; display: flex; align-items: center; justify-content: center; color: #999; }
 
         button { padding: 8px 16px; background: #007bff; color: white; border: none; cursor: pointer; border-radius: 4px; margin-right: 5px; }
         button:hover { background: #0056b3; }
@@ -100,7 +102,7 @@
                 <h2>Browse All Images</h2>
                 <p>Browse all images uploaded by users on the network and request access to view them.</p>
                 <table>
-                    <thead><tr><th>Owner</th><th>Image ID</th><th>Actions</th></tr></thead>
+                    <thead><tr><th>Preview</th><th>Owner</th><th>Image ID</th><th>Actions</th></tr></thead>
                     <tbody id="browse-table"></tbody>
                 </table>
             </div>
@@ -188,18 +190,23 @@
 
         // Load browse images
         async function loadBrowseImages() {
-            const res = await fetch('/api/all_images');
+            const res = await fetch('/api/other_users_images');
             const images = await res.json();
 
             const tbody = document.getElementById('browse-table');
 
             if (images.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="3">No images available</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="4">No images available</td></tr>';
                 return;
             }
 
             tbody.innerHTML = images.map(img => `
                 <tr>
+                    <td>
+                        <div class="thumbnail-loading" id="thumb-${img.image_id}">
+                            Loading...
+                        </div>
+                    </td>
                     <td>${img.owner}</td>
                     <td>${img.image_id}</td>
                     <td>
@@ -209,6 +216,37 @@
                     </td>
                 </tr>
             `).join('');
+
+            // Fetch thumbnails for each image
+            images.forEach(img => fetchThumbnail(img.image_id, img.owner));
+        }
+
+        // Fetch thumbnail for an image
+        async function fetchThumbnail(imageId, owner) {
+            try {
+                const res = await fetch('/api/thumbnail', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ image_id: imageId, owner: owner })
+                });
+
+                const result = await res.json();
+
+                if (result.success && result.data && result.data.thumbnail_data) {
+                    const thumbDiv = document.getElementById('thumb-' + imageId);
+                    thumbDiv.innerHTML = '';
+                    const img = document.createElement('img');
+                    img.className = 'thumbnail';
+                    img.src = 'data:image/png;base64,' + result.data.thumbnail_data;
+                    thumbDiv.appendChild(img);
+                } else {
+                    const thumbDiv = document.getElementById('thumb-' + imageId);
+                    thumbDiv.textContent = 'N/A';
+                }
+            } catch (e) {
+                const thumbDiv = document.getElementById('thumb-' + imageId);
+                if (thumbDiv) thumbDiv.textContent = 'Error';
+            }
         }
 
         // Show request dialog
@@ -290,13 +328,56 @@
 
                 modal.style.display = 'block';
                 modalImg.src = 'data:image/png;base64,' + result.data.image_data;
-                caption.innerHTML = `Image: ${imageId}<br>Remaining views updated`;
+
+                // Check if access was denied
+                if (result.data.access_denied) {
+                    caption.innerHTML = `
+                        <div style="color: #ff6b6b; margin-bottom: 15px;">
+                            ⚠️ Access Denied - Your views have been exhausted
+                        </div>
+                        <button onclick="requestMoreViews('${imageId}')" style="padding: 10px 20px; font-size: 16px;">
+                            Request More Views
+                        </button>
+                    `;
+                } else {
+                    caption.innerHTML = `Image: ${imageId}<br>Remaining views updated`;
+                }
 
                 // Reload viewable images to update view counts
                 setTimeout(() => loadViewableImages(), 1000);
             } else {
                 alert('Error: ' + result.message);
             }
+        }
+
+        // Request more views for an image
+        async function requestMoreViews(imageId) {
+            closeModal();
+
+            // Get image info to find the owner
+            const res = await fetch('/api/viewable_images');
+            const images = await res.json();
+            const imageInfo = images.find(img => img.image_id === imageId);
+
+            if (!imageInfo) {
+                alert('Could not find image information');
+                return;
+            }
+
+            // Get owner's P2P address
+            const peersRes = await fetch('/api/peers');
+            const peers = await peersRes.json();
+            const ownerPeer = peers.find(p => p.username === imageInfo.owner);
+
+            if (!ownerPeer) {
+                alert(`Owner ${imageInfo.owner} is not online`);
+                return;
+            }
+
+            const views = prompt(`Request how many additional views for image '${imageId}'?`, '3');
+            if (!views) return;
+
+            requestAccess(ownerPeer.p2p_address, imageId, parseInt(views));
         }
 
         // Close modal

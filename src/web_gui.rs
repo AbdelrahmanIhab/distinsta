@@ -236,6 +236,65 @@ async fn get_all_images_handler(State(client): State<Arc<Client>>) -> Json<Vec<I
     Json(images)
 }
 
+async fn get_other_users_images_handler(State(client): State<Arc<Client>>) -> Json<Vec<ImageInfo>> {
+    let images = client.get_other_users_images().await.unwrap_or_default();
+    Json(images)
+}
+
+#[derive(Deserialize)]
+struct ThumbnailRequest {
+    image_id: String,
+    owner: String,
+}
+
+async fn get_thumbnail_handler(
+    State(client): State<Arc<Client>>,
+    Json(req): Json<ThumbnailRequest>,
+) -> Json<ApiResponse> {
+    // Get the list of peers to find the owner's P2P address
+    let peers = match client.get_peers().await {
+        Ok(p) => p,
+        Err(e) => {
+            return Json(ApiResponse {
+                success: false,
+                message: format!("Failed to get peers: {}", e),
+                data: None,
+            });
+        }
+    };
+
+    // Find the owner in the peers list
+    let owner_info = match peers.iter().find(|p| p.username == req.owner) {
+        Some(info) => info,
+        None => {
+            return Json(ApiResponse {
+                success: false,
+                message: format!("Owner {} not found in peers list", req.owner),
+                data: None,
+            });
+        }
+    };
+
+    // Request the thumbnail from the owner
+    match client.request_thumbnail(&owner_info.p2p_address, req.image_id.clone()).await {
+        Ok(thumbnail_data) => {
+            let base64_thumbnail = base64::engine::general_purpose::STANDARD.encode(&thumbnail_data);
+            Json(ApiResponse {
+                success: true,
+                message: "Thumbnail fetched successfully".to_string(),
+                data: Some(serde_json::json!({
+                    "thumbnail_data": base64_thumbnail
+                })),
+            })
+        }
+        Err(e) => Json(ApiResponse {
+            success: false,
+            message: format!("Failed to fetch thumbnail: {}", e),
+            data: None,
+        }),
+    }
+}
+
 async fn get_viewable_images_handler(
     State(client): State<Arc<Client>>,
 ) -> Json<Vec<ViewableImageInfo>> {
@@ -253,17 +312,28 @@ async fn view_image_handler(
     Json(req): Json<ViewImageRequest>,
 ) -> Json<ApiResponse> {
     match client.view_image_with_tracking(&req.image_id).await {
-        Ok(path) => {
+        Ok((path, is_access_denied)) => {
             // Read the image file and encode as base64
             match fs::read(&path) {
                 Ok(image_bytes) => {
                     let base64_image = base64::engine::general_purpose::STANDARD.encode(&image_bytes);
+
+                    // Clean up temporary access denied image
+                    if is_access_denied {
+                        let _ = fs::remove_file(&path);
+                    }
+
                     Json(ApiResponse {
                         success: true,
-                        message: format!("Image viewed successfully"),
+                        message: if is_access_denied {
+                            "Access denied - views exhausted".to_string()
+                        } else {
+                            "Image viewed successfully".to_string()
+                        },
                         data: Some(serde_json::json!({
                             "path": path,
-                            "image_data": base64_image
+                            "image_data": base64_image,
+                            "access_denied": is_access_denied
                         })),
                     })
                 }
@@ -293,6 +363,8 @@ pub async fn start_web_server(client: Arc<Client>) {
         .route("/api/reject", post(reject_request_handler))
         .route("/api/pending_requests", get(get_pending_requests_handler))
         .route("/api/all_images", get(get_all_images_handler))
+        .route("/api/other_users_images", get(get_other_users_images_handler))
+        .route("/api/thumbnail", post(get_thumbnail_handler))
         .route("/api/viewable_images", get(get_viewable_images_handler))
         .route("/api/view_image", post(view_image_handler))
         .route("/api/request", post(request_image_handler))

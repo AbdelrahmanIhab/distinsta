@@ -27,6 +27,11 @@ pub enum P2PRequest {
         owner: String,
         owner_p2p_address: String,
     },
+    /// Request thumbnail/preview of an image
+    RequestThumbnail {
+        requester: String,
+        image_id: String,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -55,5 +60,10 @@ pub enum P2PResponse {
     /// Approval sent successfully
     ApprovalSent {
         message: String,
+    },
+    /// Thumbnail data (low resolution preview)
+    ThumbnailData {
+        image_id: String,
+        data: Vec<u8>,
     },
 }
