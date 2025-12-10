@@ -21,6 +21,16 @@ use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::RwLock;
 use tokio::time::{sleep, Duration};
+use serde::{Deserialize, Serialize};
+
+// Request for viewing an image
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ViewRequest {
+    pub requester: String,
+    pub image_id: String,
+    pub requested_views: u32,
+    pub requester_p2p_address: String,
+}
 
 pub struct Client {
     pub username: String,
@@ -29,6 +39,7 @@ pub struct Client {
     p2p_address: String,
     pub owned_images: Arc<RwLock<HashMap<String, PathBuf>>>,    // image_id -> path
     pub received_images: Arc<RwLock<HashMap<String, PathBuf>>>, // image_id -> path
+    pub pending_requests: Arc<RwLock<Vec<ViewRequest>>>,        // Incoming requests for my images
 }
 
 impl Client {
@@ -40,6 +51,7 @@ impl Client {
             p2p_address,
             owned_images: Arc::new(RwLock::new(HashMap::new())),
             received_images: Arc::new(RwLock::new(HashMap::new())),
+            pending_requests: Arc::new(RwLock::new(Vec::new())),
         }
     }
 
@@ -145,6 +157,138 @@ impl Client {
 
         println!("✓ Image saved with permissions");
         Ok(())
+    }
+
+    /// Upload an image without targeting a specific user
+    /// Makes the image available for all peers to browse and request access
+    pub async fn upload_image(&self, image_path: &str, image_id: String) -> Result<(), Box<dyn std::error::Error>> {
+        println!("Uploading image '{}' from '{}'", image_id, image_path);
+
+        // Load image directly from file path
+        let img = image::open(image_path)
+            .map_err(|e| format!("Failed to load image '{}': {}", image_path, e))?
+            .to_rgba8();
+
+        // Create new metadata with owner info (no permissions yet - those come from approvals)
+        let metadata = ImageMetadata::new(self.username.clone(), image_id.clone());
+
+        // Embed metadata
+        let embedded_img = embed_metadata(&img, &metadata)?;
+
+        // Save to owned directory
+        let owned_dir = format!("images/owned_{}", self.username);
+        fs::create_dir_all(&owned_dir)?;
+        let save_path = format!("{}/{}.png", owned_dir, image_id);
+        embedded_img.save(&save_path)?;
+
+        // Store reference
+        let mut owned = self.owned_images.write().await;
+        owned.insert(image_id.clone(), PathBuf::from(save_path.clone()));
+
+        // Publish to discovery service with empty shared_with list (visible to all for browsing)
+        self.publish_image(image_id.clone(), save_path, vec![]).await?;
+
+        println!("✓ Image uploaded and published");
+        Ok(())
+    }
+
+    /// Request access to view an image owned by another peer
+    pub async fn request_access(&self, owner_p2p_addr: &str, image_id: String, requested_views: u32) -> Result<(), Box<dyn std::error::Error>> {
+        println!("Requesting access to image '{}' ({} views)", image_id, requested_views);
+
+        let request = P2PRequest::RequestAccess {
+            requester: self.username.clone(),
+            requester_p2p_address: self.p2p_address.clone(),
+            image_id: image_id.clone(),
+            requested_views,
+        };
+
+        let mut stream = TcpStream::connect(owner_p2p_addr).await?;
+        let request_json = serde_json::to_string(&request)?;
+        stream.write_all(request_json.as_bytes()).await?;
+        stream.write_all(b"\n").await?;
+
+        let mut reader = BufReader::new(&mut stream);
+        let mut response_line = String::new();
+        reader.read_line(&mut response_line).await?;
+
+        let response: P2PResponse = serde_json::from_str(&response_line)?;
+
+        match response {
+            P2PResponse::RequestReceived { message } => {
+                println!("✓ {}", message);
+                Ok(())
+            }
+            P2PResponse::Error { message } => {
+                Err(format!("Error: {}", message).into())
+            }
+            _ => Err("Unexpected response".into()),
+        }
+    }
+
+    /// Approve a view request and grant access to the requester
+    pub async fn approve_request(&self, requester: String, requester_p2p_addr: String, image_id: String, granted_views: u32) -> Result<(), Box<dyn std::error::Error>> {
+        println!("Approving request from {} for image '{}' ({} views)", requester, image_id, granted_views);
+
+        // Add permission to the image metadata
+        self.share_image(
+            &format!("images/owned_{}/{}.png", self.username, image_id),
+            image_id.clone(),
+            requester.clone(),
+            granted_views
+        ).await?;
+
+        // Send approval to requester
+        let request = P2PRequest::ApproveRequest {
+            requester: requester.clone(),
+            image_id: image_id.clone(),
+            granted_views,
+        };
+
+        let mut stream = TcpStream::connect(&requester_p2p_addr).await?;
+        let request_json = serde_json::to_string(&request)?;
+        stream.write_all(request_json.as_bytes()).await?;
+        stream.write_all(b"\n").await?;
+
+        let mut reader = BufReader::new(&mut stream);
+        let mut response_line = String::new();
+        reader.read_line(&mut response_line).await?;
+
+        let response: P2PResponse = serde_json::from_str(&response_line)?;
+
+        match response {
+            P2PResponse::ApprovalSent { message } => {
+                println!("✓ {}", message);
+
+                // Remove from pending requests
+                let mut pending = self.pending_requests.write().await;
+                pending.retain(|req| !(req.requester == requester && req.image_id == image_id));
+
+                Ok(())
+            }
+            P2PResponse::Error { message } => {
+                Err(format!("Error: {}", message).into())
+            }
+            _ => Err("Unexpected response".into()),
+        }
+    }
+
+    /// Reject a view request
+    pub async fn reject_request(&self, requester: String, image_id: String) -> Result<(), Box<dyn std::error::Error>> {
+        println!("Rejecting request from {} for image '{}'", requester, image_id);
+
+        // Remove from pending requests
+        let mut pending = self.pending_requests.write().await;
+        pending.retain(|req| !(req.requester == requester && req.image_id == image_id));
+
+        println!("✓ Request rejected");
+        Ok(())
+    }
+
+    /// Get list of pending view requests
+    pub async fn get_pending_requests(&self) -> Vec<ViewRequest> {
+        let pending = self.pending_requests.read().await;
+        pending.clone()
     }
 
     pub async fn request_image_from_peer(&self, owner: &str, image_id: &str, owner_p2p_addr: &str) -> Result<(), Box<dyn std::error::Error>> {
@@ -340,6 +484,47 @@ impl Client {
                     })
                     .collect();
                 P2PResponse::ImageList { images }
+            }
+            P2PRequest::RequestAccess {
+                requester,
+                requester_p2p_address,
+                image_id,
+                requested_views,
+            } => {
+                // Add to pending requests queue
+                let mut pending = self.pending_requests.write().await;
+                pending.push(ViewRequest {
+                    requester: requester.clone(),
+                    image_id: image_id.clone(),
+                    requested_views,
+                    requester_p2p_address,
+                });
+                drop(pending);
+
+                println!("📥 New access request from {} for image '{}' ({} views)",
+                    requester, image_id, requested_views);
+
+                P2PResponse::RequestReceived {
+                    message: format!(
+                        "Your request for image '{}' has been sent to the owner",
+                        image_id
+                    ),
+                }
+            }
+            P2PRequest::ApproveRequest {
+                requester: _,
+                image_id,
+                granted_views,
+            } => {
+                // This approval is being received by the requester
+                println!("✓ Access approved for image '{}' ({} views)", image_id, granted_views);
+
+                P2PResponse::ApprovalSent {
+                    message: format!(
+                        "You have been granted {} views for image '{}'",
+                        granted_views, image_id
+                    ),
+                }
             }
         };
 

@@ -16,14 +16,19 @@
         table { width: 100%; border-collapse: collapse; margin-top: 10px; }
         th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
         th { background: #f8f9fa; }
-        button { padding: 8px 16px; background: #007bff; color: white; border: none; cursor: pointer; border-radius: 4px; }
+        button { padding: 8px 16px; background: #007bff; color: white; border: none; cursor: pointer; border-radius: 4px; margin-right: 5px; }
         button:hover { background: #0056b3; }
+        button.reject { background: #dc3545; }
+        button.reject:hover { background: #c82333; }
         input, select { padding: 8px; margin: 10px 0; width: 100%; max-width: 400px; }
         .form-group { margin-bottom: 15px; }
         label { display: block; margin-bottom: 5px; font-weight: bold; }
         .image-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 15px; margin-top: 20px; }
-        .image-card { border: 1px solid #ddd; padding: 10px; border-radius: 4px; }
+        .image-card { border: 1px solid #ddd; padding: 10px; border-radius: 4px; background: #f9f9f9; }
+        .image-card strong { display: block; margin-bottom: 10px; }
         .status { float: right; color: green; }
+        .request-card { border: 1px solid #ddd; padding: 15px; margin: 10px 0; border-radius: 4px; background: #f9f9f9; }
+        .request-info { margin-bottom: 10px; }
     </style>
 </head>
 <body>
@@ -32,53 +37,48 @@
 
         <!-- Tabs -->
         <div class="tabs">
-            <button class="tab active" onclick="showTab('peers')">Peers</button>
-            <button class="tab" onclick="showTab('share')">Share Image</button>
+            <button class="tab active" onclick="showTab('upload')">Upload</button>
+            <button class="tab" onclick="showTab('browse')">Browse Images</button>
+            <button class="tab" onclick="showTab('requests')">Requests</button>
             <button class="tab" onclick="showTab('my-images')">My Images</button>
-            <button class="tab" onclick="showTab('received')">Received Images</button>
         </div>
 
-        <!-- Peers Tab -->
-        <div id="peers-tab" class="tab-content active">
-            <h2>Online Peers</h2>
-            <table>
-                <thead><tr><th>Username</th><th>P2P Address</th></tr></thead>
-                <tbody id="peers-table"></tbody>
-            </table>
-        </div>
-
-        <!-- Share Tab -->
-        <div id="share-tab" class="tab-content">
-            <h2>Share Image</h2>
+        <!-- Upload Tab -->
+        <div id="upload-tab" class="tab-content active">
+            <h2>Upload Image</h2>
+            <p>Upload an image to share with the network. Other users can request access to view it.</p>
             <div class="form-group">
                 <label>Image Path:</label>
-                <input type="text" id="image-path" placeholder="test_images/test1.png">
+                <input type="text" id="upload-path" placeholder="test_images/test1.png">
             </div>
             <div class="form-group">
                 <label>Image ID:</label>
-                <input type="text" id="image-id" placeholder="img001">
+                <input type="text" id="upload-id" placeholder="img001">
             </div>
-            <div class="form-group">
-                <label>Share With:</label>
-                <select id="peer-select"></select>
-            </div>
-            <div class="form-group">
-                <label>View Quota:</label>
-                <input type="number" id="view-quota" value="5" min="1">
-            </div>
-            <button onclick="shareImage()">Share Image</button>
+            <button onclick="uploadImage()">Upload Image</button>
+        </div>
+
+        <!-- Browse Tab -->
+        <div id="browse-tab" class="tab-content">
+            <h2>Browse Peer Images</h2>
+            <p>Browse images uploaded by other users and request access to view them.</p>
+            <table>
+                <thead><tr><th>Owner</th><th>Image ID</th><th>P2P Address</th><th>Actions</th></tr></thead>
+                <tbody id="browse-table"></tbody>
+            </table>
+        </div>
+
+        <!-- Requests Tab -->
+        <div id="requests-tab" class="tab-content">
+            <h2>Pending Access Requests</h2>
+            <p>Approve or reject requests from other users to view your images.</p>
+            <div id="requests-list"></div>
         </div>
 
         <!-- My Images Tab -->
         <div id="my-images-tab" class="tab-content">
             <h2>My Images</h2>
             <div id="my-images-list" class="image-list"></div>
-        </div>
-
-        <!-- Received Tab -->
-        <div id="received-tab" class="tab-content">
-            <h2>Received Images</h2>
-            <div id="received-list" class="image-list"></div>
         </div>
     </div>
 
@@ -91,35 +91,19 @@
             document.getElementById(tabName + '-tab').classList.add('active');
 
             // Load data for tab
-            if (tabName === 'peers') loadPeers();
+            if (tabName === 'browse') loadBrowseImages();
+            if (tabName === 'requests') loadRequests();
             if (tabName === 'my-images') loadMyImages();
-            if (tabName === 'received') loadReceivedImages();
         }
 
-        // Load peers
-        async function loadPeers() {
-            const res = await fetch('/api/peers');
-            const peers = await res.json();
-            const tbody = document.getElementById('peers-table');
-            tbody.innerHTML = peers.map(p => `
-                <tr><td>${p.username}</td><td>${p.p2p_address}</td></tr>
-            `).join('');
-
-            // Update peer select
-            const select = document.getElementById('peer-select');
-            select.innerHTML = peers.map(p => `<option value="${p.username}">${p.username}</option>`).join('');
-        }
-
-        // Share image
-        async function shareImage() {
+        // Upload image
+        async function uploadImage() {
             const data = {
-                image_path: document.getElementById('image-path').value,
-                image_id: document.getElementById('image-id').value,
-                target_user: document.getElementById('peer-select').value,
-                views: parseInt(document.getElementById('view-quota').value)
+                image_path: document.getElementById('upload-path').value,
+                image_id: document.getElementById('upload-id').value
             };
 
-            const res = await fetch('/api/share', {
+            const res = await fetch('/api/upload', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(data)
@@ -127,7 +111,136 @@
 
             const result = await res.json();
             alert(result.message);
-            if (result.success) loadMyImages();
+            if (result.success) {
+                document.getElementById('upload-path').value = '';
+                document.getElementById('upload-id').value = '';
+                loadMyImages();
+            }
+        }
+
+        // Load browse images (from all peers)
+        async function loadBrowseImages() {
+            const peersRes = await fetch('/api/peers');
+            const peers = await peersRes.json();
+
+            const tbody = document.getElementById('browse-table');
+            tbody.innerHTML = '';
+
+            for (const peer of peers) {
+                const row = `
+                    <tr>
+                        <td>${peer.username}</td>
+                        <td colspan="2">(Click "Request Access" to see images)</td>
+                        <td>
+                            <button onclick="showRequestDialog('${peer.username}', '${peer.p2p_address}')">
+                                Request Access
+                            </button>
+                        </td>
+                    </tr>
+                `;
+                tbody.innerHTML += row;
+            }
+        }
+
+        // Show request dialog
+        function showRequestDialog(owner, p2pAddress) {
+            const imageId = prompt(`Enter image ID from ${owner}:`);
+            if (!imageId) return;
+
+            const views = prompt('How many views do you want?', '3');
+            if (!views) return;
+
+            requestAccess(p2pAddress, imageId, parseInt(views));
+        }
+
+        // Request access to an image
+        async function requestAccess(ownerP2pAddress, imageId, requestedViews) {
+            const data = {
+                owner_p2p_address: ownerP2pAddress,
+                image_id: imageId,
+                requested_views: requestedViews
+            };
+
+            const res = await fetch('/api/request_access', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+
+            const result = await res.json();
+            alert(result.message);
+        }
+
+        // Load pending requests
+        async function loadRequests() {
+            const res = await fetch('/api/pending_requests');
+            const requests = await res.json();
+
+            const div = document.getElementById('requests-list');
+
+            if (requests.length === 0) {
+                div.innerHTML = '<p>No pending requests</p>';
+                return;
+            }
+
+            div.innerHTML = requests.map(req => `
+                <div class="request-card">
+                    <div class="request-info">
+                        <strong>From:</strong> ${req.requester}<br>
+                        <strong>Image:</strong> ${req.image_id}<br>
+                        <strong>Requested Views:</strong> ${req.requested_views}
+                    </div>
+                    <button onclick="approveRequest('${req.requester}', '${req.requester_p2p_address}', '${req.image_id}', ${req.requested_views})">
+                        Approve
+                    </button>
+                    <button class="reject" onclick="rejectRequest('${req.requester}', '${req.image_id}')">
+                        Reject
+                    </button>
+                </div>
+            `).join('');
+        }
+
+        // Approve request
+        async function approveRequest(requester, requesterP2pAddress, imageId, requestedViews) {
+            const grantedViews = prompt(`Grant how many views to ${requester}?`, requestedViews);
+            if (!grantedViews) return;
+
+            const data = {
+                requester: requester,
+                requester_p2p_address: requesterP2pAddress,
+                image_id: imageId,
+                granted_views: parseInt(grantedViews)
+            };
+
+            const res = await fetch('/api/approve', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+
+            const result = await res.json();
+            alert(result.message);
+            if (result.success) loadRequests();
+        }
+
+        // Reject request
+        async function rejectRequest(requester, imageId) {
+            if (!confirm(`Reject request from ${requester} for ${imageId}?`)) return;
+
+            const data = {
+                requester: requester,
+                image_id: imageId
+            };
+
+            const res = await fetch('/api/reject', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+
+            const result = await res.json();
+            alert(result.message);
+            if (result.success) loadRequests();
         }
 
         // Load my images
@@ -142,21 +255,11 @@
             `).join('') || '<p>No images</p>';
         }
 
-        // Load received images
-        async function loadReceivedImages() {
-            const res = await fetch('/api/received');
-            const images = await res.json();
-            const div = document.getElementById('received-list');
-            div.innerHTML = images.map(img => `
-                <div class="image-card">
-                    <strong>${img}</strong>
-                </div>
-            `).join('') || '<p>No images received</p>';
-        }
-
-        // Auto-refresh peers every 5s
-        setInterval(loadPeers, 5000);
-        loadPeers();
+        // Auto-refresh requests every 5s when on requests tab
+        setInterval(() => {
+            const activeTab = document.querySelector('.tab.active').textContent;
+            if (activeTab === 'Requests') loadRequests();
+        }, 5000);
     </script>
 </body>
 </html>

@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tower_http::services::ServeDir;
 
-use super::Client;
+use super::{Client, ViewRequest};
 use super::discovery::UserInfo;
 
 // API Response types
@@ -26,6 +26,33 @@ struct ShareRequest {
     image_id: String,
     target_user: String,
     views: u32,
+}
+
+#[derive(Deserialize)]
+struct UploadRequest {
+    image_path: String,
+    image_id: String,
+}
+
+#[derive(Deserialize)]
+struct RequestAccessRequest {
+    owner_p2p_address: String,
+    image_id: String,
+    requested_views: u32,
+}
+
+#[derive(Deserialize)]
+struct ApproveRequestRequest {
+    requester: String,
+    requester_p2p_address: String,
+    image_id: String,
+    granted_views: u32,
+}
+
+#[derive(Deserialize)]
+struct RejectRequestRequest {
+    requester: String,
+    image_id: String,
 }
 
 #[derive(Deserialize)]
@@ -110,11 +137,106 @@ async fn list_received_images_handler(State(client): State<Arc<Client>>) -> Json
     Json(images)
 }
 
+async fn upload_image_handler(
+    State(client): State<Arc<Client>>,
+    Json(req): Json<UploadRequest>,
+) -> Json<ApiResponse> {
+    match client.upload_image(&req.image_path, req.image_id).await {
+        Ok(_) => Json(ApiResponse {
+            success: true,
+            message: "Image uploaded successfully".to_string(),
+            data: None,
+        }),
+        Err(e) => Json(ApiResponse {
+            success: false,
+            message: e.to_string(),
+            data: None,
+        }),
+    }
+}
+
+async fn request_access_handler(
+    State(client): State<Arc<Client>>,
+    Json(req): Json<RequestAccessRequest>,
+) -> Json<ApiResponse> {
+    match client
+        .request_access(&req.owner_p2p_address, req.image_id, req.requested_views)
+        .await
+    {
+        Ok(_) => Json(ApiResponse {
+            success: true,
+            message: "Access request sent".to_string(),
+            data: None,
+        }),
+        Err(e) => Json(ApiResponse {
+            success: false,
+            message: e.to_string(),
+            data: None,
+        }),
+    }
+}
+
+async fn approve_request_handler(
+    State(client): State<Arc<Client>>,
+    Json(req): Json<ApproveRequestRequest>,
+) -> Json<ApiResponse> {
+    match client
+        .approve_request(
+            req.requester,
+            req.requester_p2p_address,
+            req.image_id,
+            req.granted_views,
+        )
+        .await
+    {
+        Ok(_) => Json(ApiResponse {
+            success: true,
+            message: "Request approved".to_string(),
+            data: None,
+        }),
+        Err(e) => Json(ApiResponse {
+            success: false,
+            message: e.to_string(),
+            data: None,
+        }),
+    }
+}
+
+async fn reject_request_handler(
+    State(client): State<Arc<Client>>,
+    Json(req): Json<RejectRequestRequest>,
+) -> Json<ApiResponse> {
+    match client.reject_request(req.requester, req.image_id).await {
+        Ok(_) => Json(ApiResponse {
+            success: true,
+            message: "Request rejected".to_string(),
+            data: None,
+        }),
+        Err(e) => Json(ApiResponse {
+            success: false,
+            message: e.to_string(),
+            data: None,
+        }),
+    }
+}
+
+async fn get_pending_requests_handler(
+    State(client): State<Arc<Client>>,
+) -> Json<Vec<ViewRequest>> {
+    let requests = client.get_pending_requests().await;
+    Json(requests)
+}
+
 pub async fn start_web_server(client: Arc<Client>) {
     // Build router
     let app = Router::new()
         .route("/api/peers", get(get_peers_handler))
         .route("/api/share", post(share_image_handler))
+        .route("/api/upload", post(upload_image_handler))
+        .route("/api/request_access", post(request_access_handler))
+        .route("/api/approve", post(approve_request_handler))
+        .route("/api/reject", post(reject_request_handler))
+        .route("/api/pending_requests", get(get_pending_requests_handler))
         .route("/api/request", post(request_image_handler))
         .route("/api/my_images", get(list_my_images_handler))
         .route("/api/received", get(list_received_images_handler))

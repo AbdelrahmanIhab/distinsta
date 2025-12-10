@@ -12,6 +12,19 @@ pub enum P2PRequest {
     GetImageList {
         requester: String,
     },
+    /// Request permission to view an image
+    RequestAccess {
+        requester: String,
+        requester_p2p_address: String,
+        image_id: String,
+        requested_views: u32,
+    },
+    /// Approve a view request
+    ApproveRequest {
+        requester: String,
+        image_id: String,
+        granted_views: u32,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -31,6 +44,14 @@ pub enum P2PResponse {
     },
     /// Error occurred
     Error {
+        message: String,
+    },
+    /// Request received successfully
+    RequestReceived {
+        message: String,
+    },
+    /// Approval sent successfully
+    ApprovalSent {
         message: String,
     },
 }
