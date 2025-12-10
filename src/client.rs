@@ -81,6 +81,51 @@ impl Client {
         }
     }
 
+    /// Load received images from disk into memory
+    async fn load_received_images_from_disk(&self) -> Result<(), Box<dyn std::error::Error>> {
+        let received_dir = format!("images/received_{}", self.username);
+
+        // Check if directory exists
+        if !std::path::Path::new(&received_dir).exists() {
+            println!("No received images directory found, starting fresh");
+            return Ok(());
+        }
+
+        let mut received = self.received_images.write().await;
+        let mut count = 0;
+
+        // Read all files in the received directory
+        for entry in fs::read_dir(&received_dir)? {
+            let entry = entry?;
+            let path = entry.path();
+
+            if path.is_file() && path.extension().map_or(false, |ext| ext == "png") {
+                if let Some(filename) = path.file_stem() {
+                    if let Some(filename_str) = filename.to_str() {
+                        // Filename format: owner_imageid
+                        // Extract image_id (everything after first underscore)
+                        if let Some(underscore_pos) = filename_str.find('_') {
+                            let image_id = &filename_str[underscore_pos + 1..];
+                            received.insert(image_id.to_string(), path.clone());
+                            count += 1;
+                            println!("  Loaded: {} from {}", image_id, path.display());
+                        }
+                    }
+                }
+            }
+        }
+
+        drop(received);
+
+        if count > 0 {
+            println!("✓ Loaded {} received image(s) from disk", count);
+        } else {
+            println!("No received images found on disk");
+        }
+
+        Ok(())
+    }
+
     async fn send_request(&self, request: ClientRequest) -> Result<ServerResponse, Box<dyn std::error::Error>> {
         let request_json = serde_json::to_string(&request)?;
 
@@ -1355,6 +1400,12 @@ async fn main() {
 
     // Wait for P2P server to start
     sleep(Duration::from_secs(1)).await;
+
+    // Load received images from disk
+    println!("Loading received images from disk...");
+    if let Err(e) = client.load_received_images_from_disk().await {
+        eprintln!("Warning: Failed to load received images: {}", e);
+    }
 
     // Register with discovery service
     let registration_success = client.register().await.is_ok();
