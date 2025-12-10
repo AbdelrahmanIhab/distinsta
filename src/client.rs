@@ -651,47 +651,83 @@ impl Client {
 
     /// Request permissions sync from all image owners
     pub async fn sync_permissions_from_owners(&self) -> Result<(), Box<dyn std::error::Error>> {
-        use crate::p2p_protocol::{P2PRequest, P2PResponse, PermissionUpdate};
+        use crate::p2p_protocol::{P2PRequest, P2PResponse};
 
-        // Get list of all owners of images we have
+        // Get list of all unique owners of images we have
         let received = self.received_images.read().await;
-        let mut owners_to_sync = std::collections::HashSet::new();
+        let mut unique_owners = std::collections::HashSet::new();
+
+        println!("Checking {} received images for sync...", received.len());
 
         for (image_id, path) in received.iter() {
             if let Ok(img_bytes) = fs::read(path) {
                 if let Ok(img) = image::load_from_memory(&img_bytes) {
                     let rgba = img.to_rgba8();
                     if let Ok(metadata) = extract_metadata(&rgba) {
-                        owners_to_sync.insert((metadata.owner.clone(), image_id.clone()));
+                        unique_owners.insert(metadata.owner.clone());
+                        println!("  - Image '{}' owned by '{}'", image_id, metadata.owner);
                     }
                 }
             }
         }
         drop(received);
 
-        // Get online peers
-        let peers = self.get_peers().await?;
+        if unique_owners.is_empty() {
+            println!("No images to sync permissions for");
+            return Ok(());
+        }
 
-        // Request sync from each owner
-        for (owner, _) in owners_to_sync.iter() {
+        println!("Syncing permissions from {} owner(s)...", unique_owners.len());
+
+        // Get online peers
+        let peers = match self.get_peers().await {
+            Ok(p) => p,
+            Err(e) => {
+                eprintln!("Failed to get peers list: {}", e);
+                return Err(e);
+            }
+        };
+
+        println!("Found {} online peers", peers.len());
+
+        // Request sync from each unique owner
+        for owner in unique_owners.iter() {
             if let Some(owner_peer) = peers.iter().find(|p| p.username == *owner) {
+                println!("  Requesting sync from owner '{}'...", owner);
+
                 let request = P2PRequest::RequestPermissionsSync {
                     requester: self.username.clone(),
                 };
 
-                if let Ok(mut stream) = TcpStream::connect(&owner_peer.p2p_address).await {
-                    let request_json = serde_json::to_string(&request)?;
-                    stream.write_all(request_json.as_bytes()).await?;
-                    stream.write_all(b"\n").await?;
+                match TcpStream::connect(&owner_peer.p2p_address).await {
+                    Ok(mut stream) => {
+                        let request_json = serde_json::to_string(&request)?;
+                        stream.write_all(request_json.as_bytes()).await?;
+                        stream.write_all(b"\n").await?;
 
-                    let mut reader = BufReader::new(&mut stream);
-                    let mut response_line = String::new();
-                    reader.read_line(&mut response_line).await?;
+                        let mut reader = BufReader::new(&mut stream);
+                        let mut response_line = String::new();
 
-                    if let Ok(P2PResponse::PermissionsSync { updates }) = serde_json::from_str(&response_line) {
-                        self.apply_permission_updates(updates).await;
+                        match reader.read_line(&mut response_line).await {
+                            Ok(_) => {
+                                if let Ok(P2PResponse::PermissionsSync { updates }) = serde_json::from_str(&response_line) {
+                                    println!("    Received {} permission update(s) from '{}'", updates.len(), owner);
+                                    self.apply_permission_updates(updates).await;
+                                } else {
+                                    eprintln!("    Failed to parse sync response from '{}'", owner);
+                                }
+                            }
+                            Err(e) => {
+                                eprintln!("    Failed to read sync response from '{}': {}", owner, e);
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        eprintln!("    Failed to connect to '{}': {}", owner, e);
                     }
                 }
+            } else {
+                println!("  Owner '{}' is not online, skipping", owner);
             }
         }
 
@@ -709,27 +745,46 @@ impl Client {
                 match update.new_view_count {
                     Some(new_count) => {
                         // Update view count
+                        println!("    Updating permissions for image '{}'...", update.image_id);
                         if let Ok(img_bytes) = fs::read(&path_clone) {
                             if let Ok(img) = image::load_from_memory(&img_bytes) {
                                 let rgba = img.to_rgba8();
                                 if let Ok(mut metadata) = extract_metadata(&rgba) {
+                                    let old_count = metadata.permissions.get(&self.username).copied().unwrap_or(0);
                                     metadata.permissions.insert(self.username.clone(), new_count);
 
                                     if let Ok(updated_img) = embed_metadata(&rgba, &metadata) {
-                                        let _ = updated_img.save(&path_clone);
-                                        println!("✓ Synced permissions for image '{}': {} views", update.image_id, new_count);
+                                        if updated_img.save(&path_clone).is_ok() {
+                                            println!("      ✓ Updated views: {} -> {}", old_count, new_count);
+                                        } else {
+                                            eprintln!("      ✗ Failed to save updated image");
+                                        }
+                                    } else {
+                                        eprintln!("      ✗ Failed to embed metadata");
                                     }
+                                } else {
+                                    eprintln!("      ✗ Failed to extract metadata");
                                 }
+                            } else {
+                                eprintln!("      ✗ Failed to load image");
                             }
+                        } else {
+                            eprintln!("      ✗ Failed to read image file");
                         }
                     }
                     None => {
                         // Access revoked - remove image
+                        println!("    Revoking access for image '{}'...", update.image_id);
                         received.remove(&update.image_id);
-                        let _ = fs::remove_file(&path_clone);
-                        println!("✓ Synced: Access revoked for image '{}'", update.image_id);
+                        if fs::remove_file(&path_clone).is_ok() {
+                            println!("      ✓ Image removed");
+                        } else {
+                            eprintln!("      ✗ Failed to remove image file");
+                        }
                     }
                 }
+            } else {
+                println!("    Image '{}' not found in received images, skipping", update.image_id);
             }
         }
     }
