@@ -39,6 +39,10 @@ pub enum ClientRequest {
     GetUserImages {
         owner: String,
     },
+    /// Get all published images from all users
+    GetAllImages {
+        requester: String,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -107,6 +107,10 @@ impl UserRegistry {
             .collect()
     }
 
+    pub fn get_all_images(&self) -> Vec<ImageInfo> {
+        self.images.values().cloned().collect()
+    }
+
     pub fn get_image(&self, image_id: &str) -> Option<&ImageInfo> {
         self.images.get(image_id)
     }

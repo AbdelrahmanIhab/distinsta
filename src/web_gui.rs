@@ -7,8 +7,8 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tower_http::services::ServeDir;
 
-use super::{Client, ViewRequest};
-use super::discovery::UserInfo;
+use super::{Client, ViewRequest, ViewableImageInfo};
+use super::discovery::{UserInfo, ImageInfo};
 
 // API Response types
 #[derive(Serialize)]
@@ -227,6 +227,41 @@ async fn get_pending_requests_handler(
     Json(requests)
 }
 
+async fn get_all_images_handler(State(client): State<Arc<Client>>) -> Json<Vec<ImageInfo>> {
+    let images = client.get_all_images().await.unwrap_or_default();
+    Json(images)
+}
+
+async fn get_viewable_images_handler(
+    State(client): State<Arc<Client>>,
+) -> Json<Vec<ViewableImageInfo>> {
+    let images = client.get_viewable_images().await;
+    Json(images)
+}
+
+#[derive(Deserialize)]
+struct ViewImageRequest {
+    image_id: String,
+}
+
+async fn view_image_handler(
+    State(client): State<Arc<Client>>,
+    Json(req): Json<ViewImageRequest>,
+) -> Json<ApiResponse> {
+    match client.view_image_with_tracking(&req.image_id).await {
+        Ok(path) => Json(ApiResponse {
+            success: true,
+            message: format!("Image viewed successfully. Path: {}", path),
+            data: Some(serde_json::json!({"path": path})),
+        }),
+        Err(e) => Json(ApiResponse {
+            success: false,
+            message: e.to_string(),
+            data: None,
+        }),
+    }
+}
+
 pub async fn start_web_server(client: Arc<Client>) {
     // Build router
     let app = Router::new()
@@ -237,6 +272,9 @@ pub async fn start_web_server(client: Arc<Client>) {
         .route("/api/approve", post(approve_request_handler))
         .route("/api/reject", post(reject_request_handler))
         .route("/api/pending_requests", get(get_pending_requests_handler))
+        .route("/api/all_images", get(get_all_images_handler))
+        .route("/api/viewable_images", get(get_viewable_images_handler))
+        .route("/api/view_image", post(view_image_handler))
         .route("/api/request", post(request_image_handler))
         .route("/api/my_images", get(list_my_images_handler))
         .route("/api/received", get(list_received_images_handler))

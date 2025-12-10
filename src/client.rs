@@ -32,6 +32,15 @@ pub struct ViewRequest {
     pub requester_p2p_address: String,
 }
 
+// Info about a viewable image with remaining views
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ViewableImageInfo {
+    pub image_id: String,
+    pub owner: String,
+    pub remaining_views: u32,
+    pub path: String,
+}
+
 pub struct Client {
     pub username: String,
     server_addresses: Vec<String>,
@@ -108,6 +117,17 @@ impl Client {
 
         match self.send_request(request).await? {
             ServerResponse::PeerList { peers } => Ok(peers),
+            _ => Err("Unexpected response".into()),
+        }
+    }
+
+    pub async fn get_all_images(&self) -> Result<Vec<ImageInfo>, Box<dyn std::error::Error>> {
+        let request = ClientRequest::GetAllImages {
+            requester: self.username.clone(),
+        };
+
+        match self.send_request(request).await? {
+            ServerResponse::ImageList { images } => Ok(images),
             _ => Err("Unexpected response".into()),
         }
     }
@@ -289,6 +309,68 @@ impl Client {
     pub async fn get_pending_requests(&self) -> Vec<ViewRequest> {
         let pending = self.pending_requests.read().await;
         pending.clone()
+    }
+
+    /// Get list of viewable images (received images with permissions)
+    pub async fn get_viewable_images(&self) -> Vec<ViewableImageInfo> {
+        let received = self.received_images.read().await;
+        let mut viewable = Vec::new();
+
+        for (image_id, path) in received.iter() {
+            // Try to load and extract metadata
+            if let Ok(img_bytes) = fs::read(path) {
+                if let Ok(img) = image::load_from_memory(&img_bytes) {
+                    let rgba = img.to_rgba8();
+                    if let Ok(metadata) = extract_metadata(&rgba) {
+                        if metadata.can_view(&self.username) {
+                            let remaining = metadata.get_remaining_views(&self.username);
+                            viewable.push(ViewableImageInfo {
+                                image_id: image_id.clone(),
+                                owner: metadata.owner.clone(),
+                                remaining_views: remaining,
+                                path: path.display().to_string(),
+                            });
+                        }
+                    }
+                }
+            }
+        }
+
+        viewable
+    }
+
+    /// View an image and decrement the view count
+    pub async fn view_image_with_tracking(&self, image_id: &str) -> Result<String, Box<dyn std::error::Error>> {
+        // Check received images
+        let received = self.received_images.read().await;
+        if let Some(path) = received.get(image_id) {
+            let path_clone = path.clone();
+            drop(received);
+
+            // Load image and check permissions
+            let img_bytes = fs::read(&path_clone)?;
+            let img = image::load_from_memory(&img_bytes)?.to_rgba8();
+
+            let mut metadata = extract_metadata(&img)?;
+
+            if metadata.can_view(&self.username) {
+                if metadata.decrement_view(&self.username) {
+                    // Update image with decremented view count
+                    let updated_img = embed_metadata(&img, &metadata)?;
+                    updated_img.save(&path_clone)?;
+
+                    let remaining = metadata.get_remaining_views(&self.username);
+                    println!("✓ Viewing image: {}", image_id);
+                    println!("  Remaining views: {}", remaining);
+
+                    return Ok(path_clone.display().to_string());
+                }
+            }
+
+            return Err("Access denied or views exhausted".into());
+        }
+
+        Err("Image not found".into())
     }
 
     pub async fn request_image_from_peer(&self, owner: &str, image_id: &str, owner_p2p_addr: &str) -> Result<(), Box<dyn std::error::Error>> {

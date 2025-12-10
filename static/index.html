@@ -8,7 +8,7 @@
         body { font-family: Arial, sans-serif; padding: 20px; background: #f0f0f0; }
         .container { max-width: 900px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; }
         h1 { color: #333; margin-bottom: 20px; }
-        .tabs { display: flex; gap: 10px; margin-bottom: 20px; border-bottom: 2px solid #ddd; }
+        .tabs { display: flex; gap: 10px; margin-bottom: 20px; border-bottom: 2px solid #ddd; flex-wrap: wrap; }
         .tab { padding: 10px 20px; background: #eee; border: none; cursor: pointer; }
         .tab.active { background: #007bff; color: white; }
         .tab-content { display: none; }
@@ -20,12 +20,16 @@
         button:hover { background: #0056b3; }
         button.reject { background: #dc3545; }
         button.reject:hover { background: #c82333; }
+        button.success { background: #28a745; }
+        button.success:hover { background: #218838; }
         input, select { padding: 8px; margin: 10px 0; width: 100%; max-width: 400px; }
         .form-group { margin-bottom: 15px; }
         label { display: block; margin-bottom: 5px; font-weight: bold; }
         .image-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 15px; margin-top: 20px; }
-        .image-card { border: 1px solid #ddd; padding: 10px; border-radius: 4px; background: #f9f9f9; }
-        .image-card strong { display: block; margin-bottom: 10px; }
+        .image-card { border: 1px solid #ddd; padding: 15px; border-radius: 4px; background: #f9f9f9; }
+        .image-card strong { display: block; margin-bottom: 8px; color: #333; }
+        .image-card .owner { color: #666; font-size: 0.9em; margin-bottom: 8px; }
+        .image-card .views { color: #28a745; font-weight: bold; margin-bottom: 10px; }
         .status { float: right; color: green; }
         .request-card { border: 1px solid #ddd; padding: 15px; margin: 10px 0; border-radius: 4px; background: #f9f9f9; }
         .request-info { margin-bottom: 10px; }
@@ -39,6 +43,7 @@
         <div class="tabs">
             <button class="tab active" onclick="showTab('upload')">Upload</button>
             <button class="tab" onclick="showTab('browse')">Browse Images</button>
+            <button class="tab" onclick="showTab('viewable')">Viewable Images</button>
             <button class="tab" onclick="showTab('requests')">Requests</button>
             <button class="tab" onclick="showTab('my-images')">My Images</button>
         </div>
@@ -60,12 +65,19 @@
 
         <!-- Browse Tab -->
         <div id="browse-tab" class="tab-content">
-            <h2>Browse Peer Images</h2>
-            <p>Browse images uploaded by other users and request access to view them.</p>
+            <h2>Browse All Images</h2>
+            <p>Browse all images uploaded by users on the network and request access to view them.</p>
             <table>
-                <thead><tr><th>Owner</th><th>Image ID</th><th>P2P Address</th><th>Actions</th></tr></thead>
+                <thead><tr><th>Owner</th><th>Image ID</th><th>Actions</th></tr></thead>
                 <tbody id="browse-table"></tbody>
             </table>
+        </div>
+
+        <!-- Viewable Images Tab -->
+        <div id="viewable-tab" class="tab-content">
+            <h2>Viewable Images</h2>
+            <p>Images you have permission to view. Click "View" to display the image and decrement the view count.</p>
+            <div id="viewable-list" class="image-list"></div>
         </div>
 
         <!-- Requests Tab -->
@@ -92,6 +104,7 @@
 
             // Load data for tab
             if (tabName === 'browse') loadBrowseImages();
+            if (tabName === 'viewable') loadViewableImages();
             if (tabName === 'requests') loadRequests();
             if (tabName === 'my-images') loadMyImages();
         }
@@ -118,39 +131,47 @@
             }
         }
 
-        // Load browse images (from all peers)
+        // Load browse images (all images from all users)
         async function loadBrowseImages() {
-            const peersRes = await fetch('/api/peers');
-            const peers = await peersRes.json();
+            const res = await fetch('/api/all_images');
+            const images = await res.json();
 
             const tbody = document.getElementById('browse-table');
-            tbody.innerHTML = '';
 
-            for (const peer of peers) {
-                const row = `
-                    <tr>
-                        <td>${peer.username}</td>
-                        <td colspan="2">(Click "Request Access" to see images)</td>
-                        <td>
-                            <button onclick="showRequestDialog('${peer.username}', '${peer.p2p_address}')">
-                                Request Access
-                            </button>
-                        </td>
-                    </tr>
-                `;
-                tbody.innerHTML += row;
+            if (images.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="3">No images available</td></tr>';
+                return;
             }
+
+            tbody.innerHTML = images.map(img => `
+                <tr>
+                    <td>${img.owner}</td>
+                    <td>${img.image_id}</td>
+                    <td>
+                        <button onclick="showRequestDialog('${img.owner}', '${img.image_id}')">
+                            Request Access
+                        </button>
+                    </td>
+                </tr>
+            `).join('');
         }
 
         // Show request dialog
-        function showRequestDialog(owner, p2pAddress) {
-            const imageId = prompt(`Enter image ID from ${owner}:`);
-            if (!imageId) return;
+        async function showRequestDialog(owner, imageId) {
+            // Get owner's P2P address from peers list
+            const peersRes = await fetch('/api/peers');
+            const peers = await peersRes.json();
+            const ownerPeer = peers.find(p => p.username === owner);
 
-            const views = prompt('How many views do you want?', '3');
+            if (!ownerPeer) {
+                alert(`Owner ${owner} is not online`);
+                return;
+            }
+
+            const views = prompt(`How many views do you want for image '${imageId}'?`, '3');
             if (!views) return;
 
-            requestAccess(p2pAddress, imageId, parseInt(views));
+            requestAccess(ownerPeer.p2p_address, imageId, parseInt(views));
         }
 
         // Request access to an image
@@ -169,6 +190,51 @@
 
             const result = await res.json();
             alert(result.message);
+        }
+
+        // Load viewable images
+        async function loadViewableImages() {
+            const res = await fetch('/api/viewable_images');
+            const images = await res.json();
+
+            const div = document.getElementById('viewable-list');
+
+            if (images.length === 0) {
+                div.innerHTML = '<p>No viewable images. Request access to images in the Browse tab.</p>';
+                return;
+            }
+
+            div.innerHTML = images.map(img => `
+                <div class="image-card">
+                    <strong>${img.image_id}</strong>
+                    <div class="owner">Owner: ${img.owner}</div>
+                    <div class="views">Remaining views: ${img.remaining_views}</div>
+                    <button class="success" onclick="viewImage('${img.image_id}')">
+                        View Image
+                    </button>
+                </div>
+            `).join('');
+        }
+
+        // View an image
+        async function viewImage(imageId) {
+            const data = { image_id: imageId };
+
+            const res = await fetch('/api/view_image', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+
+            const result = await res.json();
+
+            if (result.success) {
+                alert(result.message);
+                // Reload viewable images to update view counts
+                loadViewableImages();
+            } else {
+                alert('Error: ' + result.message);
+            }
         }
 
         // Load pending requests
@@ -257,8 +323,9 @@
 
         // Auto-refresh requests every 5s when on requests tab
         setInterval(() => {
-            const activeTab = document.querySelector('.tab.active').textContent;
-            if (activeTab === 'Requests') loadRequests();
+            const activeTab = document.querySelector('.tab.active');
+            if (activeTab && activeTab.textContent === 'Requests') loadRequests();
+            if (activeTab && activeTab.textContent === 'Viewable Images') loadViewableImages();
         }, 5000);
     </script>
 </body>

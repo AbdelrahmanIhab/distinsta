@@ -274,6 +274,11 @@ impl ServerNode {
                 let images = registry.get_user_images(&owner);
                 ServerResponse::ImageList { images }
             }
+            ClientRequest::GetAllImages { requester: _ } => {
+                let registry = self.discovery.read().await;
+                let images = registry.get_all_images();
+                ServerResponse::ImageList { images }
+            }
         }
     }
 
