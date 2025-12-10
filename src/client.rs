@@ -1287,6 +1287,14 @@ async fn main() {
         eprintln!("Registration failed: {}", e);
     }
 
+    // Immediately sync permissions after coming online
+    println!("Syncing permissions from image owners...");
+    if let Err(e) = client.sync_permissions_from_owners().await {
+        eprintln!("Initial permission sync failed: {}", e);
+    } else {
+        println!("✓ Permissions synced");
+    }
+
     // Start heartbeat
     let client_clone = Arc::clone(&client);
     tokio::spawn(async move {
