@@ -64,6 +64,7 @@ pub struct Client {
     pub owned_images: Arc<RwLock<HashMap<String, PathBuf>>>,    // image_id -> path
     pub received_images: Arc<RwLock<HashMap<String, PathBuf>>>, // image_id -> path
     pub pending_requests: Arc<RwLock<Vec<ViewRequest>>>,        // Incoming requests for my images
+    was_online: Arc<RwLock<bool>>,                              // Track if we were online in previous heartbeat
 }
 
 impl Client {
@@ -76,6 +77,7 @@ impl Client {
             owned_images: Arc::new(RwLock::new(HashMap::new())),
             received_images: Arc::new(RwLock::new(HashMap::new())),
             pending_requests: Arc::new(RwLock::new(Vec::new())),
+            was_online: Arc::new(RwLock::new(false)),
         }
     }
 
@@ -1204,14 +1206,31 @@ impl Client {
     async fn heartbeat_loop(self: Arc<Self>) {
         loop {
             sleep(Duration::from_secs(30)).await;
+
+            // Send heartbeat and check if we're online
             let request = ClientRequest::Heartbeat {
                 username: self.username.clone(),
             };
-            let _ = self.send_request(request).await;
+            let is_online = self.send_request(request).await.is_ok();
 
-            // Sync permissions from all owners every heartbeat
-            if let Err(e) = self.sync_permissions_from_owners().await {
-                eprintln!("Failed to sync permissions: {}", e);
+            // Check if we just reconnected (transitioned from offline to online)
+            let mut was_online = self.was_online.write().await;
+            let just_reconnected = !*was_online && is_online;
+            *was_online = is_online;
+            drop(was_online);
+
+            if is_online {
+                // If we just reconnected, do an immediate full sync
+                if just_reconnected {
+                    println!("✓ Network reconnected - syncing permissions...");
+                }
+
+                // Sync permissions from all owners (either regular or reconnection sync)
+                if let Err(e) = self.sync_permissions_from_owners().await {
+                    eprintln!("Failed to sync permissions: {}", e);
+                } else if just_reconnected {
+                    println!("✓ Permissions synced after reconnection");
+                }
             }
         }
     }
@@ -1283,16 +1302,22 @@ async fn main() {
     sleep(Duration::from_secs(1)).await;
 
     // Register with discovery service
-    if let Err(e) = client.register().await {
-        eprintln!("Registration failed: {}", e);
+    let registration_success = client.register().await.is_ok();
+    if !registration_success {
+        eprintln!("Registration failed - will retry via heartbeat");
     }
 
-    // Immediately sync permissions after coming online
-    println!("Syncing permissions from image owners...");
-    if let Err(e) = client.sync_permissions_from_owners().await {
-        eprintln!("Initial permission sync failed: {}", e);
-    } else {
-        println!("✓ Permissions synced");
+    // Immediately sync permissions after coming online (if registration succeeded)
+    if registration_success {
+        println!("Syncing permissions from image owners...");
+        if let Err(e) = client.sync_permissions_from_owners().await {
+            eprintln!("Initial permission sync failed: {}", e);
+        } else {
+            println!("✓ Permissions synced");
+        }
+
+        // Mark as online after successful registration and sync
+        *client.was_online.write().await = true;
     }
 
     // Start heartbeat
