@@ -41,6 +41,21 @@ pub struct ViewableImageInfo {
     pub path: String,
 }
 
+// Info about a viewer of an owned image
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ViewerInfo {
+    pub username: String,
+    pub remaining_views: u32,
+}
+
+// Detailed info about an owned image
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OwnedImageDetails {
+    pub image_id: String,
+    pub path: String,
+    pub viewers: Vec<ViewerInfo>,
+}
+
 pub struct Client {
     pub username: String,
     server_addresses: Vec<String>,
@@ -361,6 +376,7 @@ impl Client {
     }
 
     /// Get list of viewable images (received images with permissions)
+    /// Includes both active (remaining_views > 0) and expired (remaining_views = 0) images
     pub async fn get_viewable_images(&self) -> Vec<ViewableImageInfo> {
         let received = self.received_images.read().await;
         let mut viewable = Vec::new();
@@ -371,8 +387,10 @@ impl Client {
                 if let Ok(img) = image::load_from_memory(&img_bytes) {
                     let rgba = img.to_rgba8();
                     if let Ok(metadata) = extract_metadata(&rgba) {
-                        if metadata.can_view(&self.username) {
-                            let remaining = metadata.get_remaining_views(&self.username);
+                        // Check if user has permission (either active or expired)
+                        let remaining = metadata.get_remaining_views(&self.username);
+                        // Include if user is in the permissions list (even with 0 views)
+                        if metadata.permissions.contains_key(&self.username) {
                             viewable.push(ViewableImageInfo {
                                 image_id: image_id.clone(),
                                 owner: metadata.owner.clone(),
@@ -386,6 +404,69 @@ impl Client {
         }
 
         viewable
+    }
+
+    /// Get detailed info about owned images including viewers and their permissions
+    pub async fn get_owned_images_details(&self) -> Vec<OwnedImageDetails> {
+        let owned = self.owned_images.read().await;
+        let mut details = Vec::new();
+
+        for (image_id, path) in owned.iter() {
+            // Try to load and extract metadata
+            if let Ok(img_bytes) = fs::read(path) {
+                if let Ok(img) = image::load_from_memory(&img_bytes) {
+                    let rgba = img.to_rgba8();
+                    if let Ok(metadata) = extract_metadata(&rgba) {
+                        // Convert permissions hashmap to viewers list
+                        let viewers: Vec<ViewerInfo> = metadata.permissions.iter()
+                            .map(|(username, remaining_views)| ViewerInfo {
+                                username: username.clone(),
+                                remaining_views: *remaining_views,
+                            })
+                            .collect();
+
+                        details.push(OwnedImageDetails {
+                            image_id: image_id.clone(),
+                            path: path.display().to_string(),
+                            viewers,
+                        });
+                    }
+                }
+            }
+        }
+
+        details
+    }
+
+    /// Update the view count for a specific viewer of an owned image
+    pub async fn update_viewer_permissions(&self, image_id: &str, viewer_username: &str, new_view_count: u32) -> Result<(), Box<dyn std::error::Error>> {
+        let owned = self.owned_images.read().await;
+
+        if let Some(path) = owned.get(image_id) {
+            let path_clone = path.clone();
+            drop(owned);
+
+            // Load image and metadata
+            let img_bytes = fs::read(&path_clone)?;
+            let img = image::load_from_memory(&img_bytes)?.to_rgba8();
+            let mut metadata = extract_metadata(&img)?;
+
+            // Update the viewer's permission
+            if metadata.permissions.contains_key(viewer_username) {
+                metadata.permissions.insert(viewer_username.to_string(), new_view_count);
+
+                // Save updated metadata back to image
+                let updated_img = embed_metadata(&img, &metadata)?;
+                updated_img.save(&path_clone)?;
+
+                println!("✓ Updated {} views for {} on image {}", new_view_count, viewer_username, image_id);
+                Ok(())
+            } else {
+                Err(format!("User {} does not have access to image {}", viewer_username, image_id).into())
+            }
+        } else {
+            Err(format!("Image {} not found in owned images", image_id).into())
+        }
     }
 
     /// View an image and decrement the view count

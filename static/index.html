@@ -59,6 +59,14 @@
         .close { position: absolute; top: 15px; right: 35px; color: #f1f1f1; font-size: 40px; font-weight: bold; cursor: pointer; }
         .close:hover { color: #bbb; }
         .modal-caption { text-align: center; color: #ccc; padding: 10px 0; font-size: 18px; }
+
+        /* Viewer management modal */
+        .viewers-modal { display: none; position: fixed; z-index: 1001; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.7); }
+        .viewers-modal-content { background: white; margin: 50px auto; padding: 20px; border-radius: 8px; width: 80%; max-width: 600px; max-height: 80vh; overflow-y: auto; }
+        .viewer-item { padding: 15px; margin: 10px 0; background: #f9f9f9; border-radius: 4px; border: 1px solid #ddd; }
+        .viewer-item strong { display: block; margin-bottom: 8px; }
+        .my-image-card { position: relative; }
+        .my-image-thumbnail { width: 100%; height: 150px; object-fit: cover; border-radius: 4px; margin-bottom: 10px; }
     </style>
 </head>
 <body>
@@ -112,6 +120,10 @@
                 <h2>Viewable Images</h2>
                 <p>Images you have permission to view. Click "View" to display the image and decrement the view count.</p>
                 <div id="viewable-list" class="image-list"></div>
+
+                <h2 style="margin-top: 30px;">History</h2>
+                <p>Images you previously had access to. Views have been exhausted.</p>
+                <div id="history-list" class="image-list"></div>
             </div>
 
             <!-- Requests Tab -->
@@ -134,6 +146,15 @@
         <span class="close" onclick="closeModal()">&times;</span>
         <img class="modal-content" id="modalImage">
         <div class="modal-caption" id="modalCaption"></div>
+    </div>
+
+    <!-- Viewers Management Modal -->
+    <div id="viewersModal" class="viewers-modal">
+        <div class="viewers-modal-content">
+            <h2 id="viewersModalTitle">Manage Viewers</h2>
+            <span class="close" onclick="closeViewersModal()" style="position: absolute; right: 20px; top: 20px; color: #333;">&times;</span>
+            <div id="viewers-list"></div>
+        </div>
     </div>
 
     <script>
@@ -289,23 +310,42 @@
             const res = await fetch('/api/viewable_images');
             const images = await res.json();
 
-            const div = document.getElementById('viewable-list');
+            // Separate active and expired images
+            const activeImages = images.filter(img => img.remaining_views > 0);
+            const historyImages = images.filter(img => img.remaining_views === 0);
 
-            if (images.length === 0) {
-                div.innerHTML = '<p>No viewable images. Request access to images in the Browse tab.</p>';
-                return;
+            const activeDiv = document.getElementById('viewable-list');
+            const historyDiv = document.getElementById('history-list');
+
+            if (activeImages.length === 0) {
+                activeDiv.innerHTML = '<p>No viewable images. Request access to images in the Browse tab.</p>';
+            } else {
+                activeDiv.innerHTML = activeImages.map(img => `
+                    <div class="image-card">
+                        <strong>${img.image_id}</strong>
+                        <div class="owner">Owner: ${img.owner}</div>
+                        <div class="views">Remaining views: ${img.remaining_views}</div>
+                        <button class="success" onclick="viewImage('${img.image_id}')">
+                            View Image
+                        </button>
+                    </div>
+                `).join('');
             }
 
-            div.innerHTML = images.map(img => `
-                <div class="image-card">
-                    <strong>${img.image_id}</strong>
-                    <div class="owner">Owner: ${img.owner}</div>
-                    <div class="views">Remaining views: ${img.remaining_views}</div>
-                    <button class="success" onclick="viewImage('${img.image_id}')">
-                        View Image
-                    </button>
-                </div>
-            `).join('');
+            if (historyImages.length === 0) {
+                historyDiv.innerHTML = '<p>No expired images.</p>';
+            } else {
+                historyDiv.innerHTML = historyImages.map(img => `
+                    <div class="image-card">
+                        <strong>${img.image_id}</strong>
+                        <div class="owner">Owner: ${img.owner}</div>
+                        <div style="color: #dc3545; font-weight: bold; margin-bottom: 10px;">Views Exhausted</div>
+                        <button onclick="viewImage('${img.image_id}')">
+                            Try to View
+                        </button>
+                    </div>
+                `).join('');
+            }
         }
 
         // View an image
@@ -457,16 +497,122 @@
             if (result.success) loadRequests();
         }
 
-        // Load my images
+        // Load my images with details
         async function loadMyImages() {
-            const res = await fetch('/api/my_images');
+            const res = await fetch('/api/my_images_details');
             const images = await res.json();
             const div = document.getElementById('my-images-list');
+
+            if (images.length === 0) {
+                div.innerHTML = '<p>No images uploaded yet</p>';
+                return;
+            }
+
             div.innerHTML = images.map(img => `
-                <div class="image-card">
-                    <strong>${img}</strong>
+                <div class="image-card my-image-card" id="my-img-${img.image_id}">
+                    <div class="thumbnail-loading" style="width: 100%; height: 150px; margin-bottom: 10px;">
+                        Loading...
+                    </div>
+                    <strong>${img.image_id}</strong>
+                    <div style="margin-top: 10px;">
+                        <strong>Viewers: ${img.viewers.length}</strong>
+                    </div>
+                    <button onclick="showViewers('${img.image_id}', ${JSON.stringify(img.viewers).replace(/"/g, '&quot;')})">
+                        Manage Viewers
+                    </button>
                 </div>
-            `).join('') || '<p>No images</p>';
+            `).join('');
+
+            // Load thumbnails for each image
+            images.forEach(img => loadMyImageThumbnail(img.image_id, img.path));
+        }
+
+        // Load thumbnail for my image
+        async function loadMyImageThumbnail(imageId, path) {
+            try {
+                const res = await fetch('/api/get_image_file', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ path: path })
+                });
+
+                const result = await res.json();
+
+                if (result.success && result.image_data) {
+                    const card = document.getElementById('my-img-' + imageId);
+                    if (card) {
+                        const loadingDiv = card.querySelector('.thumbnail-loading');
+                        const imgEl = document.createElement('img');
+                        imgEl.className = 'my-image-thumbnail';
+                        imgEl.src = 'data:image/png;base64,' + result.image_data;
+                        loadingDiv.replaceWith(imgEl);
+                    }
+                }
+            } catch (e) {
+                console.error('Failed to load thumbnail:', e);
+            }
+        }
+
+        // Show viewers management modal
+        function showViewers(imageId, viewers) {
+            const modal = document.getElementById('viewersModal');
+            const title = document.getElementById('viewersModalTitle');
+            const list = document.getElementById('viewers-list');
+
+            title.textContent = `Manage Viewers - ${imageId}`;
+
+            if (viewers.length === 0) {
+                list.innerHTML = '<p>No users have access to this image yet.</p>';
+            } else {
+                list.innerHTML = viewers.map(viewer => `
+                    <div class="viewer-item">
+                        <strong>${viewer.username}</strong>
+                        <div>Remaining Views: ${viewer.remaining_views}</div>
+                        <div style="margin-top: 10px;">
+                            <button onclick="modifyViewCount('${imageId}', '${viewer.username}', ${viewer.remaining_views})">
+                                Modify View Count
+                            </button>
+                        </div>
+                    </div>
+                `).join('');
+            }
+
+            modal.style.display = 'block';
+        }
+
+        // Close viewers modal
+        function closeViewersModal() {
+            document.getElementById('viewersModal').style.display = 'none';
+        }
+
+        // Modify view count for a viewer
+        async function modifyViewCount(imageId, viewerUsername, currentViews) {
+            const newCount = prompt(`Enter new view count for ${viewerUsername} (currently: ${currentViews}):`, currentViews);
+            if (newCount === null) return;
+
+            const newViewCount = parseInt(newCount);
+            if (isNaN(newViewCount) || newViewCount < 0) {
+                alert('Please enter a valid number');
+                return;
+            }
+
+            const res = await fetch('/api/update_viewer', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    image_id: imageId,
+                    viewer_username: viewerUsername,
+                    new_view_count: newViewCount
+                })
+            });
+
+            const result = await res.json();
+            alert(result.message);
+
+            if (result.success) {
+                closeViewersModal();
+                loadMyImages();
+            }
         }
 
         // Auto-refresh

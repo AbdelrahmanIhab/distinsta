@@ -11,7 +11,7 @@ use std::fs;
 use tower_http::services::ServeDir;
 use base64::Engine;
 
-use super::{Client, ViewRequest, ViewableImageInfo};
+use super::{Client, ViewRequest, ViewableImageInfo, OwnedImageDetails, ViewerInfo};
 use super::discovery::{UserInfo, ImageInfo};
 
 // API Response types
@@ -133,6 +133,59 @@ async fn list_my_images_handler(State(client): State<Arc<Client>>) -> Json<Vec<S
     let owned = client.owned_images.read().await;
     let images: Vec<String> = owned.keys().cloned().collect();
     Json(images)
+}
+
+async fn get_my_images_details_handler(State(client): State<Arc<Client>>) -> Json<Vec<OwnedImageDetails>> {
+    let details = client.get_owned_images_details().await;
+    Json(details)
+}
+
+#[derive(Deserialize)]
+struct GetImageFileRequest {
+    path: String,
+}
+
+async fn get_image_file_handler(
+    Json(req): Json<GetImageFileRequest>,
+) -> Result<impl IntoResponse, (axum::http::StatusCode, String)> {
+    match fs::read(&req.path) {
+        Ok(image_bytes) => {
+            let base64_image = base64::engine::general_purpose::STANDARD.encode(&image_bytes);
+            Ok(Json(serde_json::json!({
+                "success": true,
+                "image_data": base64_image
+            })))
+        }
+        Err(e) => Err((
+            axum::http::StatusCode::NOT_FOUND,
+            format!("Failed to read image: {}", e)
+        )),
+    }
+}
+
+#[derive(Deserialize)]
+struct UpdateViewerRequest {
+    image_id: String,
+    viewer_username: String,
+    new_view_count: u32,
+}
+
+async fn update_viewer_permissions_handler(
+    State(client): State<Arc<Client>>,
+    Json(req): Json<UpdateViewerRequest>,
+) -> Json<ApiResponse> {
+    match client.update_viewer_permissions(&req.image_id, &req.viewer_username, req.new_view_count).await {
+        Ok(_) => Json(ApiResponse {
+            success: true,
+            message: "Viewer permissions updated successfully".to_string(),
+            data: None,
+        }),
+        Err(e) => Json(ApiResponse {
+            success: false,
+            message: e.to_string(),
+            data: None,
+        }),
+    }
 }
 
 async fn list_received_images_handler(State(client): State<Arc<Client>>) -> Json<Vec<String>> {
@@ -369,6 +422,9 @@ pub async fn start_web_server(client: Arc<Client>) {
         .route("/api/view_image", post(view_image_handler))
         .route("/api/request", post(request_image_handler))
         .route("/api/my_images", get(list_my_images_handler))
+        .route("/api/my_images_details", get(get_my_images_details_handler))
+        .route("/api/get_image_file", post(get_image_file_handler))
+        .route("/api/update_viewer", post(update_viewer_permissions_handler))
         .route("/api/received", get(list_received_images_handler))
         .nest_service("/", ServeDir::new("static"))
         .with_state(client);
