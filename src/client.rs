@@ -460,6 +460,14 @@ impl Client {
                 updated_img.save(&path_clone)?;
 
                 println!("✓ Updated {} views for {} on image {}", new_view_count, viewer_username, image_id);
+
+                // Notify the viewer of the updated permissions
+                let viewer = viewer_username.to_string();
+                let img_id = image_id.to_string();
+                tokio::spawn(async move {
+                    let _ = Self::notify_viewer_of_update(&viewer, &img_id, new_view_count).await;
+                });
+
                 Ok(())
             } else {
                 Err(format!("User {} does not have access to image {}", viewer_username, image_id).into())
@@ -467,6 +475,170 @@ impl Client {
         } else {
             Err(format!("Image {} not found in owned images", image_id).into())
         }
+    }
+
+    /// Notify owner that a view was consumed
+    async fn notify_owner_of_view_consumed(owner: &str, viewer: &str, image_id: &str, remaining_views: u32) -> Result<(), Box<dyn std::error::Error>> {
+        // Get owner's P2P address from discovery service
+        let request = ClientRequest::GetPeers {
+            username: viewer.to_string(),
+        };
+
+        // Simple connection to discovery service to get peers
+        // We'll use a temporary connection since this is a static method
+        let server_addresses = vec!["127.0.0.1:8000".to_string()];
+
+        for address in &server_addresses {
+            if let Ok(mut stream) = TcpStream::connect(address).await {
+                let request_json = serde_json::to_string(&request)?;
+                stream.write_all(request_json.as_bytes()).await?;
+                stream.write_all(b"\n").await?;
+
+                let mut reader = BufReader::new(&mut stream);
+                let mut response_line = String::new();
+                reader.read_line(&mut response_line).await?;
+
+                if let Ok(ServerResponse::PeerList { peers }) = serde_json::from_str(&response_line) {
+                    if let Some(owner_peer) = peers.iter().find(|p| p.username == owner) {
+                        // Send notification to owner
+                        let notification = P2PRequest::NotifyViewConsumed {
+                            viewer: viewer.to_string(),
+                            image_id: image_id.to_string(),
+                            remaining_views,
+                        };
+
+                        if let Ok(mut p2p_stream) = TcpStream::connect(&owner_peer.p2p_address).await {
+                            let notification_json = serde_json::to_string(&notification)?;
+                            p2p_stream.write_all(notification_json.as_bytes()).await?;
+                            p2p_stream.write_all(b"\n").await?;
+                        }
+                    }
+                    break;
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Notify viewer of permission update
+    async fn notify_viewer_of_update(viewer: &str, image_id: &str, new_view_count: u32) -> Result<(), Box<dyn std::error::Error>> {
+        // Get viewer's P2P address from discovery service
+        let request = ClientRequest::GetPeers {
+            username: "temp".to_string(),
+        };
+
+        let server_addresses = vec!["127.0.0.1:8000".to_string()];
+
+        for address in &server_addresses {
+            if let Ok(mut stream) = TcpStream::connect(address).await {
+                let request_json = serde_json::to_string(&request)?;
+                stream.write_all(request_json.as_bytes()).await?;
+                stream.write_all(b"\n").await?;
+
+                let mut reader = BufReader::new(&mut stream);
+                let mut response_line = String::new();
+                reader.read_line(&mut response_line).await?;
+
+                if let Ok(ServerResponse::PeerList { peers }) = serde_json::from_str(&response_line) {
+                    if let Some(viewer_peer) = peers.iter().find(|p| p.username == viewer) {
+                        // Send update to viewer
+                        let update = P2PRequest::UpdateViewerPermissions {
+                            viewer: viewer.to_string(),
+                            image_id: image_id.to_string(),
+                            new_view_count,
+                        };
+
+                        if let Ok(mut p2p_stream) = TcpStream::connect(&viewer_peer.p2p_address).await {
+                            let update_json = serde_json::to_string(&update)?;
+                            p2p_stream.write_all(update_json.as_bytes()).await?;
+                            p2p_stream.write_all(b"\n").await?;
+                        }
+                    }
+                    break;
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Revoke access for a viewer
+    pub async fn revoke_viewer_access(&self, image_id: &str, viewer_username: &str) -> Result<(), Box<dyn std::error::Error>> {
+        let owned = self.owned_images.read().await;
+
+        if let Some(path) = owned.get(image_id) {
+            let path_clone = path.clone();
+            drop(owned);
+
+            // Load image and metadata
+            let img_bytes = fs::read(&path_clone)?;
+            let img = image::load_from_memory(&img_bytes)?.to_rgba8();
+            let mut metadata = extract_metadata(&img)?;
+
+            // Remove the viewer's permission
+            if metadata.permissions.remove(viewer_username).is_some() {
+                // Save updated metadata back to image
+                let updated_img = embed_metadata(&img, &metadata)?;
+                updated_img.save(&path_clone)?;
+
+                println!("✓ Revoked access for {} on image {}", viewer_username, image_id);
+
+                // Notify the viewer that access was revoked
+                let viewer = viewer_username.to_string();
+                let img_id = image_id.to_string();
+                tokio::spawn(async move {
+                    let _ = Self::notify_viewer_of_revoke(&viewer, &img_id).await;
+                });
+
+                Ok(())
+            } else {
+                Err(format!("User {} does not have access to image {}", viewer_username, image_id).into())
+            }
+        } else {
+            Err(format!("Image {} not found in owned images", image_id).into())
+        }
+    }
+
+    /// Notify viewer that access was revoked
+    async fn notify_viewer_of_revoke(viewer: &str, image_id: &str) -> Result<(), Box<dyn std::error::Error>> {
+        // Get viewer's P2P address from discovery service
+        let request = ClientRequest::GetPeers {
+            username: "temp".to_string(),
+        };
+
+        let server_addresses = vec!["127.0.0.1:8000".to_string()];
+
+        for address in &server_addresses {
+            if let Ok(mut stream) = TcpStream::connect(address).await {
+                let request_json = serde_json::to_string(&request)?;
+                stream.write_all(request_json.as_bytes()).await?;
+                stream.write_all(b"\n").await?;
+
+                let mut reader = BufReader::new(&mut stream);
+                let mut response_line = String::new();
+                reader.read_line(&mut response_line).await?;
+
+                if let Ok(ServerResponse::PeerList { peers }) = serde_json::from_str(&response_line) {
+                    if let Some(viewer_peer) = peers.iter().find(|p| p.username == viewer) {
+                        // Send revoke notification to viewer
+                        let revoke = P2PRequest::RevokeAccess {
+                            viewer: viewer.to_string(),
+                            image_id: image_id.to_string(),
+                        };
+
+                        if let Ok(mut p2p_stream) = TcpStream::connect(&viewer_peer.p2p_address).await {
+                            let revoke_json = serde_json::to_string(&revoke)?;
+                            p2p_stream.write_all(revoke_json.as_bytes()).await?;
+                            p2p_stream.write_all(b"\n").await?;
+                        }
+                    }
+                    break;
+                }
+            }
+        }
+
+        Ok(())
     }
 
     /// View an image and decrement the view count
@@ -493,6 +665,14 @@ impl Client {
                     let remaining = metadata.get_remaining_views(&self.username);
                     println!("✓ Viewing image: {}", image_id);
                     println!("  Remaining views: {}", remaining);
+
+                    // Notify owner of view consumption
+                    let owner = metadata.owner.clone();
+                    let image_id_clone = image_id.to_string();
+                    let self_clone = self.username.clone();
+                    tokio::spawn(async move {
+                        let _ = Self::notify_owner_of_view_consumed(&owner, &self_clone, &image_id_clone, remaining).await;
+                    });
 
                     return Ok((path_clone.display().to_string(), false));
                 }
@@ -786,6 +966,99 @@ impl Client {
                     P2PResponse::Error {
                         message: "Image not found".to_string(),
                     }
+                }
+            }
+            P2PRequest::NotifyViewConsumed { viewer, image_id, remaining_views } => {
+                // Update the owner's copy of the image with the new view count
+                let owned = self.owned_images.read().await;
+                if let Some(path) = owned.get(&image_id) {
+                    let path_clone = path.clone();
+                    drop(owned);
+
+                    match fs::read(&path_clone) {
+                        Ok(img_bytes) => {
+                            match image::load_from_memory(&img_bytes) {
+                                Ok(img) => {
+                                    let rgba = img.to_rgba8();
+                                    match extract_metadata(&rgba) {
+                                        Ok(mut metadata) => {
+                                            // Update the viewer's remaining views
+                                            metadata.permissions.insert(viewer, remaining_views);
+
+                                            // Save updated metadata
+                                            match embed_metadata(&rgba, &metadata) {
+                                                Ok(updated_img) => {
+                                                    let _ = updated_img.save(&path_clone);
+                                                    println!("✓ Updated view count for image '{}'", image_id);
+                                                }
+                                                Err(_) => {}
+                                            }
+                                        }
+                                        Err(_) => {}
+                                    }
+                                }
+                                Err(_) => {}
+                            }
+                        }
+                        Err(_) => {}
+                    }
+                }
+                P2PResponse::Acknowledged {
+                    message: "View count updated".to_string(),
+                }
+            }
+            P2PRequest::UpdateViewerPermissions { viewer, image_id, new_view_count } => {
+                // Update the viewer's copy of the image with new permissions from owner
+                let received = self.received_images.read().await;
+                if let Some(path) = received.get(&image_id) {
+                    let path_clone = path.clone();
+                    drop(received);
+
+                    match fs::read(&path_clone) {
+                        Ok(img_bytes) => {
+                            match image::load_from_memory(&img_bytes) {
+                                Ok(img) => {
+                                    let rgba = img.to_rgba8();
+                                    match extract_metadata(&rgba) {
+                                        Ok(mut metadata) => {
+                                            // Update this viewer's permissions
+                                            if viewer == self.username {
+                                                metadata.permissions.insert(viewer, new_view_count);
+
+                                                // Save updated metadata
+                                                match embed_metadata(&rgba, &metadata) {
+                                                    Ok(updated_img) => {
+                                                        let _ = updated_img.save(&path_clone);
+                                                        println!("✓ Your view count for image '{}' was updated to {}", image_id, new_view_count);
+                                                    }
+                                                    Err(_) => {}
+                                                }
+                                            }
+                                        }
+                                        Err(_) => {}
+                                    }
+                                }
+                                Err(_) => {}
+                            }
+                        }
+                        Err(_) => {}
+                    }
+                }
+                P2PResponse::Acknowledged {
+                    message: "Permissions updated".to_string(),
+                }
+            }
+            P2PRequest::RevokeAccess { viewer, image_id } => {
+                // Remove the viewer's access (delete the received image)
+                if viewer == self.username {
+                    let mut received = self.received_images.write().await;
+                    if let Some(path) = received.remove(&image_id) {
+                        let _ = fs::remove_file(&path);
+                        println!("⚠ Your access to image '{}' has been revoked", image_id);
+                    }
+                }
+                P2PResponse::AccessRevoked {
+                    message: "Access revoked".to_string(),
                 }
             }
         };

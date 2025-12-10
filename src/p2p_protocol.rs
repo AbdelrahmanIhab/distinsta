@@ -32,6 +32,23 @@ pub enum P2PRequest {
         requester: String,
         image_id: String,
     },
+    /// Notify owner that a view was consumed
+    NotifyViewConsumed {
+        viewer: String,
+        image_id: String,
+        remaining_views: u32,
+    },
+    /// Update viewer's permissions (from owner to viewer)
+    UpdateViewerPermissions {
+        viewer: String,
+        image_id: String,
+        new_view_count: u32,
+    },
+    /// Revoke access to an image
+    RevokeAccess {
+        viewer: String,
+        image_id: String,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -65,5 +82,13 @@ pub enum P2PResponse {
     ThumbnailData {
         image_id: String,
         data: Vec<u8>,
+    },
+    /// Acknowledgment of notification
+    Acknowledged {
+        message: String,
+    },
+    /// Access revoked
+    AccessRevoked {
+        message: String,
     },
 }

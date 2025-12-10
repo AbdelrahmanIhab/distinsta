@@ -188,6 +188,30 @@ async fn update_viewer_permissions_handler(
     }
 }
 
+#[derive(Deserialize)]
+struct RevokeAccessRequest {
+    image_id: String,
+    viewer_username: String,
+}
+
+async fn revoke_access_handler(
+    State(client): State<Arc<Client>>,
+    Json(req): Json<RevokeAccessRequest>,
+) -> Json<ApiResponse> {
+    match client.revoke_viewer_access(&req.image_id, &req.viewer_username).await {
+        Ok(_) => Json(ApiResponse {
+            success: true,
+            message: "Access revoked successfully".to_string(),
+            data: None,
+        }),
+        Err(e) => Json(ApiResponse {
+            success: false,
+            message: e.to_string(),
+            data: None,
+        }),
+    }
+}
+
 async fn list_received_images_handler(State(client): State<Arc<Client>>) -> Json<Vec<String>> {
     let received = client.received_images.read().await;
     let images: Vec<String> = received.keys().cloned().collect();
@@ -425,6 +449,7 @@ pub async fn start_web_server(client: Arc<Client>) {
         .route("/api/my_images_details", get(get_my_images_details_handler))
         .route("/api/get_image_file", post(get_image_file_handler))
         .route("/api/update_viewer", post(update_viewer_permissions_handler))
+        .route("/api/revoke_access", post(revoke_access_handler))
         .route("/api/received", get(list_received_images_handler))
         .nest_service("/", ServeDir::new("static"))
         .with_state(client);

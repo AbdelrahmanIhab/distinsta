@@ -572,6 +572,9 @@
                             <button onclick="modifyViewCount('${imageId}', '${viewer.username}', ${viewer.remaining_views})">
                                 Modify View Count
                             </button>
+                            <button class="reject" onclick="revokeAccess('${imageId}', '${viewer.username}')">
+                                Revoke Access
+                            </button>
                         </div>
                     </div>
                 `).join('');
@@ -603,6 +606,30 @@
                     image_id: imageId,
                     viewer_username: viewerUsername,
                     new_view_count: newViewCount
+                })
+            });
+
+            const result = await res.json();
+            alert(result.message);
+
+            if (result.success) {
+                closeViewersModal();
+                loadMyImages();
+            }
+        }
+
+        // Revoke access for a viewer
+        async function revokeAccess(imageId, viewerUsername) {
+            if (!confirm(`Are you sure you want to revoke access for ${viewerUsername}?`)) {
+                return;
+            }
+
+            const res = await fetch('/api/revoke_access', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    image_id: imageId,
+                    viewer_username: viewerUsername
                 })
             });
 
